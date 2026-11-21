@@ -66,7 +66,7 @@ Settings → ShipHero accounts shows which kind is set and, for access tokens, t
 
 ### Scheduling
 
-`vercel.json` runs `gmail-ingest` every 5 minutes (needs a Vercel plan that allows that frequency). Anywhere else, call the endpoint from any cron:
+`vercel.json` runs `gmail-ingest` and `shiphero-sync` once a day (Vercel Hobby allows only daily cron jobs). On Vercel Pro, change both schedules to `*/5 * * * *`. Settings → Jobs → **Run now** works any time. Anywhere else, call the endpoint from any cron:
 
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" https://<host>/api/jobs/gmail-ingest
