@@ -1,0 +1,1374 @@
+<meta name="dash-one-writer">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+.gl{--f:'Inter',var(--font-anthropic-sans),system-ui,-apple-system,'Segoe UI',sans-serif;
+  --ink:var(--color-fg);--mute:var(--color-fg-muted);--card:var(--color-panel);--page:var(--color-bg);
+  --line:color-mix(in srgb,var(--color-border-line) 80%,transparent);
+  --rose:color-mix(in srgb,var(--color-bad) 82%,var(--color-fg));--rose-bg:color-mix(in srgb,var(--color-bad) 7%,var(--color-panel));--rose-ln:color-mix(in srgb,var(--color-bad) 22%,transparent);
+  --amber:color-mix(in srgb,var(--color-warn) 78%,var(--color-fg));--amber-bg:color-mix(in srgb,var(--color-warn) 9%,var(--color-panel));
+  --mint:color-mix(in srgb,var(--color-ok) 80%,var(--color-fg));--mint-bg:color-mix(in srgb,var(--color-ok) 9%,var(--color-panel));
+  --chip:color-mix(in srgb,var(--color-fg) 5%,var(--color-panel));
+  --r:14px;--r-sm:9px;
+  font-family:var(--f);color:var(--ink);font-size:15px;line-height:1.5;display:flex;flex-direction:column;gap:20px;-webkit-font-smoothing:antialiased}
+.gl *{box-sizing:border-box}
+.gl button,.gl input,.gl select{font:inherit;color:inherit}
+.gl :focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:6px}
+.gl svg.i{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+.gl-top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.gl-title{font-size:28px;font-weight:700;letter-spacing:-.02em;line-height:1.15;margin:0}
+.gl-lede{margin:6px 0 0;color:var(--mute);font-size:15px;max-width:64ch}
+.gl-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.gl-kpi{appearance:none;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:2px;min-height:44px;color:var(--ink);transition:border-color .15s,background .15s}
+.gl-kpi:hover{border-color:var(--mute)}
+.gl-kpi:focus-visible,.gl-row:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.gl-kpi-n{font-size:26px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1}
+.gl-kpi-l{font-size:13.5px;font-weight:600}
+.gl-kpi-s{font-size:12.5px;color:var(--mute)}
+.gl-kpi.fix .gl-kpi-n{color:var(--rose)}
+.gl-kpi.fix[aria-pressed="true"]{border-color:var(--rose);background:var(--rose-bg)}
+.gl-kpi.live .gl-kpi-n{color:var(--mint)}
+.gl-select{min-height:36px;padding:0 30px 0 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:14px;font-weight:500;cursor:pointer}
+.gl-fmenu{position:relative}
+.gl-fmenu>summary{list-style:none;display:inline-flex;align-items:center;gap:6px}
+.gl-fmenu>summary::-webkit-details-marker{display:none}
+.gl-fmenu>summary .i{width:15px;height:15px}
+.gl-fmenu[open]>summary,.gl-fmenu.on>summary{color:var(--ink);border-color:var(--mute)}
+.gl-fcount{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--ink);color:var(--page);font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.gl-fcount:empty{display:none}
+.gl-fpanel{position:absolute;z-index:8;top:calc(100% + 6px);left:0;width:min(360px,calc(100vw - 32px));background:var(--cds-surface-popover,var(--card));border:1px solid color-mix(in srgb,var(--color-fg) 22%,transparent);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:14px}
+.gl-fgroup{display:flex;flex-direction:column;gap:6px}
+.gl-fchips{display:flex;flex-wrap:wrap;gap:6px}
+.gl-chip[aria-pressed="true"]{background:var(--ink);color:var(--page);border-color:var(--ink)}
+.gl-active{font-size:13px;color:var(--mute);display:flex;gap:8px;align-items:center}
+.gl-active:empty{display:none}
+.gl-row[aria-expanded="true"]{background:var(--chip)}
+.gl-row .gl-chev{width:16px;height:16px;color:var(--mute);transition:transform .15s;justify-self:end}
+.gl-row[aria-expanded="true"] .gl-chev{transform:rotate(180deg)}
+.gl-x-panel{padding:4px 14px 16px 128px;display:flex;flex-direction:column;gap:12px;background:var(--chip)}
+.gl-x-sec h4{margin:0 0 4px;font-size:12px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.04em}
+.gl-x-fix{display:grid;grid-template-columns:4px minmax(0,1fr) auto;gap:12px;align-items:start;padding:8px 0;border-top:1px solid var(--line);font-size:13.5px}
+.gl-x-fix:first-of-type{border-top:0}
+.gl-x-fix .gl-todo-bar{min-height:100%}
+.gl-x-fix-t{font-weight:600}
+.gl-x-fix-d{color:var(--mute);font-size:13px;line-height:1.45;margin-top:2px}
+.gl-x-fix-f{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12.5px;color:var(--mute);margin-top:3px}
+.gl-x-fix-f a{color:inherit}
+.gl-x-note{font-size:13.5px;line-height:1.45}
+.gl-x-note b{display:block}
+.gl-x-note .w{color:var(--mute);font-size:13px;margin-top:2px}
+.gl-x-kv{display:flex;flex-wrap:wrap;gap:4px 20px;font-size:13px;margin:0}
+.gl-x-kv div{display:flex;gap:6px}.gl-x-kv dt{color:var(--mute)}.gl-x-kv dd{margin:0}
+.gl-x-acts{display:flex;flex-wrap:wrap;gap:8px}
+@media (max-width:760px){.gl-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.gl-x-panel{padding:4px 12px 14px}.gl-kpi-n{font-size:22px}}
+.gl-lede b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+
+.gl-seg{display:inline-flex;background:var(--chip);border-radius:11px;padding:3px;gap:2px}
+.gl-seg button{appearance:none;border:0;background:transparent;min-height:34px;padding:0 13px;border-radius:8px;cursor:pointer;font-size:13.5px;font-weight:500;color:var(--mute);white-space:nowrap;transition:background .15s,color .15s}
+.gl-seg button:hover{color:var(--ink)}
+.gl-seg button[aria-pressed="true"],.gl-seg button[aria-selected="true"]{background:var(--card);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+.gl-seg .n{margin-left:6px;font-variant-numeric:tabular-nums;color:var(--mute);font-weight:500}
+
+.gl-tabs{overflow-x:auto;scrollbar-width:none;max-width:100%}
+.gl-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.gl-search{flex:1 1 200px;min-width:160px;max-width:300px;min-height:36px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);font-size:14px}
+.gl-chip{appearance:none;min-height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:transparent;cursor:pointer;font-size:13.5px;color:var(--mute);transition:all .15s}
+.gl-chip:hover{color:var(--ink);border-color:var(--mute)}
+.gl-chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--page)}
+.gl-bar-end{margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.gl-lbl{font-size:13px;color:var(--mute)}
+
+.gl-board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start}
+.gl-phase-tabs{display:none}
+.gl-board.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.gl-lv-sec{margin-bottom:22px}
+.gl-lv-h{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;margin:0 0 8px}
+.gl-lv-h .n{color:var(--mute);font-weight:500}
+.gl-lv{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.gl-row{appearance:none;width:100%;text-align:left;background:transparent;border:0;display:grid;grid-template-columns:100px minmax(0,1fr) auto 72px 28px;gap:14px;align-items:center;padding:11px 14px;cursor:pointer;min-height:52px}
+.gl-lv-item{border-top:1px solid var(--line)}.gl-lv-item:first-child{border-top:0}
+.gl-row:hover{background:var(--chip)}
+.gl-row[aria-selected="true"]{background:var(--chip);box-shadow:inset 3px 0 0 var(--ink)}
+.gl-row.stalled{opacity:.6}
+.gl-row-d{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.25}
+.gl-row-d small{display:block;font-weight:400;color:var(--mute)}
+.gl-row-t{font-size:14px;font-weight:600;line-height:1.3;overflow-wrap:anywhere}
+.gl-row-t small{display:block;font-weight:400;font-size:12.5px;color:var(--mute)}
+.gl-row-m{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.gl-pill{font-size:12.5px;font-weight:600;padding:3px 10px;border-radius:999px;white-space:nowrap}
+.gl-pill.fix{background:var(--rose-bg);color:var(--rose);border:1px solid var(--rose-ln)}
+.gl-pill.ok{background:var(--mint-bg);color:var(--mint)}
+.gl-pill.due{background:var(--amber-bg);color:var(--amber)}
+.gl-pill.idle{background:transparent;color:var(--ink);opacity:.8;font-weight:500;border:1px solid color-mix(in srgb,var(--color-fg) 30%,transparent)}
+.gl-pill{display:inline-flex;align-items:center;gap:5px}.gl-pill .i{width:13px;height:13px}
+.gl-row-store{font-size:14px;font-weight:700;color:var(--ink);text-decoration:none;letter-spacing:-.01em}
+a.gl-row-store:hover{text-decoration:underline;text-underline-offset:3px}
+.gl-row-line{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;margin-top:3px}
+.gl-row-promo{font-size:13.5px;color:var(--ink);opacity:.85}
+.gl-lv-h{flex-wrap:wrap}
+.gl-lv-group{font-size:16px;font-weight:700;margin:6px 0 12px;display:flex;gap:8px;align-items:baseline}
+.gl-lv-group .n{color:var(--mute);font-weight:500;font-size:14px}
+.gl-lv-rel{color:var(--mute);font-weight:500;font-size:13px}
+.gl-lv-fixn{color:var(--rose);font-weight:600;font-size:13px}
+.gl-lv-h .gl-lv-rel::before,.gl-lv-h .n::before,.gl-lv-h .gl-lv-fixn::before{content:"·";margin-right:8px;color:var(--mute);font-weight:400}
+.gl-sep{color:var(--mute)}
+.gl-offer-t{font-size:13.5px;color:var(--ink);opacity:.85}
+.gl-own{font-size:13px;color:var(--mute);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gl-live-dot::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--mint);margin-right:6px;vertical-align:1px}
+.gl-exp,.gl-exp-sp{width:28px;height:28px}
+.gl-exp{appearance:none;border:0;background:none;border-radius:8px;cursor:pointer;color:var(--mute);display:inline-flex;align-items:center;justify-content:center}
+.gl-exp:hover{background:var(--chip);color:var(--ink)}
+.gl-exp .i,.gl-lv-toggle .i{width:16px;height:16px;transition:transform .15s}
+.gl-exp[aria-expanded="true"] .i,.gl-lv-toggle[aria-expanded="true"] .i{transform:rotate(180deg)}
+.gl-lv-fixes{list-style:none;margin:0;padding:0 14px 10px 128px}
+.gl-lv-fix{display:grid;grid-template-columns:4px minmax(0,1fr) auto;gap:12px;align-items:center;padding:8px 0;border-top:1px dashed var(--line);font-size:13.5px}
+.gl-lv-fix-t small{display:block;font-size:12.5px;color:var(--mute)}
+.gl-btn.sm{min-height:30px;font-size:13px}
+.gl-lv-toggle{appearance:none;border:0;background:none;padding:6px 0;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer;margin-bottom:8px}
+.gl-lv-toggle .n{color:var(--mute);font-weight:500}
+@media (max-width:760px){.gl-row{grid-template-columns:58px minmax(0,1fr) auto 28px;gap:10px;padding:10px 12px}.gl-row .gl-own{display:none}.gl-lv-fixes{padding:0 12px 10px 12px}}
+.gl-cal{position:relative}
+.gl-pop{position:absolute;z-index:6;width:300px;max-width:calc(100vw - 32px);background:var(--cds-surface-popover,var(--card));border:1px solid var(--line);border-radius:12px;box-shadow:none;border-color:color-mix(in srgb,var(--color-fg) 22%,transparent);padding:12px 14px;font-size:13px;line-height:1.45}
+.gl-pop.tip{pointer-events:none}
+.gl-pop-store{font-size:14px;font-weight:700}
+.gl-pop-promo{font-size:13.5px;margin:1px 0 6px}
+.gl-pop-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0}
+.gl-pop-dates{color:var(--mute)}
+.gl-pop ul{margin:6px 0 0;padding-left:16px;color:var(--rose)}
+.gl-pop-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.gl-pop-x{position:absolute;top:8px;right:8px;appearance:none;border:0;background:none;cursor:pointer;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;color:var(--mute)}
+.gl-todo-sec{margin-bottom:22px}
+.gl-todo-item{display:grid;grid-template-columns:4px minmax(0,1fr) auto;gap:12px;align-items:center;padding:11px 14px;border-top:1px solid var(--line)}
+.gl-todo-item:first-child{border-top:0}
+.gl-todo-bar{align-self:stretch;border-radius:2px;background:var(--color-warn)}
+.gl-todo-bar.red{background:var(--color-bad)}
+.gl-todo-open{appearance:none;border:0;background:none;padding:0;text-align:left;cursor:pointer;min-width:0}
+.gl-todo-open:hover .gl-todo-t{text-decoration:underline;text-underline-offset:3px}
+.gl-todo-t{font-size:14px;font-weight:500;line-height:1.35}
+.gl-todo-s{font-size:12.5px;color:var(--mute);margin-top:2px}
+
+@media (max-width:899px){.gl-board{grid-template-columns:minmax(0,1fr)}.gl-phase-tabs{display:flex}.gl-col:not(.on){display:none}}
+.gl-col{background:var(--chip);border-radius:calc(var(--r) + 4px);padding:12px;min-height:200px;display:flex;flex-direction:column;gap:10px}
+.gl-col-h{display:flex;align-items:center;gap:8px;padding:2px 4px 0}
+.gl-col-h h2{font-size:15px;font-weight:600;margin:0}
+.gl-col-n{font-size:13px;color:var(--mute);font-variant-numeric:tabular-nums}
+.gl-col-sub{font-size:13px;color:var(--mute);margin:-6px 4px 2px}
+.gl-col-fix{margin-left:auto;font-size:12px;font-weight:600;color:var(--rose);background:var(--rose-bg);border:1px solid var(--rose-ln);padding:2px 8px;border-radius:999px;white-space:nowrap}
+.gl-col-body{display:flex;flex-direction:column;gap:10px}
+.gl-empty{font-size:14px;color:var(--mute);padding:24px 8px;text-align:center}
+.gl-more{appearance:none;border:0;background:none;padding:6px 4px;font-size:13px;color:var(--mute);cursor:pointer;text-align:left;text-decoration:underline;text-underline-offset:3px}
+
+.gl-card{appearance:none;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:9px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.gl-card:hover{border-color:color-mix(in srgb,var(--color-fg) 25%,transparent)}
+.gl-card[aria-selected="true"]{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.gl-card.stalled{opacity:.62;border-style:dashed}
+.gl-c-top{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:12.5px;color:var(--mute)}
+.gl-c-store{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gl-when{white-space:nowrap;font-variant-numeric:tabular-nums}
+.gl-live{display:inline-flex;align-items:center;gap:6px;color:var(--mint);font-weight:600}
+.gl-live::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--color-ok)}
+.gl-c-title{font-size:15.5px;font-weight:600;line-height:1.3;overflow-wrap:anywhere}
+.gl-c-store.big{font-size:14.5px;font-weight:700;color:var(--ink);letter-spacing:-.01em}
+.gl-c-title.sub{font-size:14px;font-weight:500;color:var(--ink);opacity:.85;margin-top:-4px}
+.gl-c-top:has(.big){align-items:baseline}
+.gl-c-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.gl-kind{font-size:12px;font-weight:600;padding:2px 9px;border-radius:7px;white-space:nowrap}
+.gl-kind.k-product{background:color-mix(in srgb,var(--color-fg) 88%,transparent);color:var(--page)}
+.gl-kind.k-discount{background:var(--amber-bg);color:var(--amber);border:1px solid color-mix(in srgb,var(--color-warn) 25%,transparent)}
+.gl-kind.k-marketing{background:var(--chip);color:var(--ink)}
+.gl-kind.k-other,.gl-kind.k-re-promo{background:transparent;color:var(--mute);border:1px dashed var(--line)}
+.gl-offer{font-size:13.5px;font-weight:600}
+.gl-vinyl{font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid var(--ink);font-weight:500}
+.gl-fix{background:var(--rose-bg);border:1px solid var(--rose-ln);border-radius:var(--r-sm);padding:9px 11px;display:flex;flex-direction:column;gap:4px}
+.gl-fix-h{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--rose)}
+.gl-fix-h .n{margin-left:auto;font-variant-numeric:tabular-nums}
+.gl-fix ul{list-style:none;margin:0;padding:0;font-size:13.5px;line-height:1.4}
+.gl-fix li{padding-left:12px;position:relative}
+.gl-fix li::before{content:"";position:absolute;left:0;top:.6em;width:5px;height:5px;border-radius:50%;background:var(--rose)}
+.gl-fix li.yellow::before{background:var(--color-warn)}
+.gl-fix .more{font-size:12.5px;color:var(--mute);padding-left:12px}
+.gl-ok,.gl-due,.gl-idle{display:flex;align-items:center;gap:7px;font-size:13px;border-radius:var(--r-sm);padding:7px 10px}
+.gl-ok{background:var(--mint-bg);color:var(--mint)}
+.gl-due{background:var(--amber-bg);color:var(--amber)}
+.gl-idle{background:var(--chip);color:var(--mute)}
+.gl-c-foot{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:12.5px;color:var(--mute)}
+.gl-av{width:20px;height:20px;border-radius:50%;background:var(--chip);border:1px solid var(--line);color:var(--ink);font-size:10px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.gl-who{display:inline-flex;align-items:center;gap:6px}
+.gl-apv{color:var(--amber);font-weight:500}
+.gl-wait{flex-basis:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gl-stall{font-size:13px;color:var(--mute);font-style:italic}
+
+.gl-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+@media (min-width:1200px){.gl-layout.has-detail{grid-template-columns:minmax(0,1fr) 400px}}
+@media (max-width:1199px){
+  .gl-layout{position:relative}
+  .gl-detail{position:absolute;right:0;top:0;width:min(460px,90vw);max-height:calc(100vh - 24px);overflow:auto;z-index:20;box-shadow:none;border:1px solid color-mix(in srgb,var(--color-fg) 22%,transparent)}
+  .gl-scrim{position:absolute;inset:0;z-index:15;background:transparent;cursor:default}
+}
+@media (min-width:1200px){.gl-scrim{display:none}}
+.gl-detail{background:var(--card);border:1px solid var(--line);border-radius:calc(var(--r) + 4px);padding:20px}
+@media (min-width:1200px){.gl-detail{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}}
+.gl-back{display:none;appearance:none;border:0;background:none;padding:0 0 12px;font-size:14px;font-weight:500;cursor:pointer;min-height:44px;align-items:center;gap:6px}
+@media (max-width:1199px){.gl-back{display:inline-flex}}
+.gl-d-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.gl-d-store{font-size:13px;color:var(--mute)}
+.gl-d-title{font-size:21px;font-weight:700;letter-spacing:-.01em;line-height:1.25;margin:2px 0 8px}
+.gl-x{appearance:none;width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--card);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.gl-d-acts{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 4px}
+.gl-btn{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 12px;border-radius:9px;border:1px solid var(--line);background:var(--card);font-size:13.5px;font-weight:500;text-decoration:none;color:var(--ink);cursor:pointer}
+.gl-btn:hover{border-color:var(--mute)}
+.gl-btn[disabled]{opacity:.5;cursor:default}
+.gl-kv{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13.5px;margin:14px 0}
+.gl-kv dt{color:var(--mute)}.gl-kv dd{margin:0}
+.gl-where{background:var(--chip);border-radius:var(--r-sm);padding:12px 14px;margin:14px 0}
+.gl-where h3{font-size:14px;font-weight:600;margin:0 0 4px}
+.gl-where p{font-size:13.5px;margin:0 0 6px;line-height:1.5}
+.gl-where .w{color:var(--mute)}
+.gl-sec{border-top:1px solid var(--line);padding-top:14px;margin-top:14px}
+.gl-sec-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.gl-sec-h h3{font-size:14.5px;font-weight:600;margin:0}
+.gl-sec-s{font-size:12.5px;color:var(--mute);margin:2px 0 0}
+.gl-chk{border-left:3px solid var(--line);padding:6px 0 6px 12px;margin:8px 0}
+.gl-chk.red{border-left-color:var(--color-bad)}.gl-chk.yellow{border-left-color:var(--color-warn)}.gl-chk.green{border-left-color:var(--color-ok)}
+.gl-chk.acked{opacity:.65;border-left-style:dashed}
+.gl-chk-t{font-size:14px;font-weight:500;line-height:1.35}
+.gl-chk-d{font-size:13px;color:var(--mute);line-height:1.45;margin-top:2px}
+.gl-chk-f{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12.5px;color:var(--mute);margin-top:4px}
+.gl-chk-f a,.gl-link{color:var(--ink)}
+.gl-txt-btn{appearance:none;border:0;background:none;padding:0;font-size:12.5px;color:var(--mute);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.gl-list{margin:4px 0 0;padding-left:18px;font-size:13px;color:var(--mute)}
+.gl-list li{margin:2px 0;overflow-wrap:anywhere}
+.gl-mode{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:14px;font-size:13px;color:var(--mute)}
+
+.gl-cal-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--card)}
+.gl-cal-row{display:grid;grid-auto-rows:minmax(36px,auto);border-bottom:1px solid var(--line)}
+.gl-cal-row:last-child{border-bottom:0}
+.gl-cal-head{position:sticky;top:0;background:var(--card);z-index:2}
+.gl-cal-day{font-size:11.5px;color:var(--mute);padding:8px 4px;border-left:1px solid var(--line);text-align:center;line-height:1.25}
+.gl-cal-day b{display:block;font-size:16px;font-weight:600;color:var(--ink)}
+.gl-cal-day.today b{color:var(--mint)}
+.gl-cal-store{grid-column:1;font-size:13.5px;font-weight:600;padding:9px 12px;position:sticky;left:0;background:var(--card);z-index:1;border-right:1px solid var(--line)}
+.gl-cal-store small{display:block;font-weight:400;font-size:12px;color:var(--mute)}
+.gl-cal-bg{border-left:1px solid var(--line);grid-row:1/-1}
+.gl-cal-bg.today{background:var(--mint-bg)}
+.gl-ev{appearance:none;margin:4px 3px;padding:3px 8px;border-radius:7px;font-size:12px;font-weight:500;text-align:left;cursor:pointer;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;border:1px solid transparent;min-width:0;z-index:1}
+.gl-ev.k-product{background:color-mix(in srgb,var(--color-fg) 88%,transparent);color:var(--page)}
+.gl-ev.k-discount{background:var(--amber-bg);color:var(--amber);border-color:color-mix(in srgb,var(--color-warn) 30%,transparent)}
+.gl-ev.k-marketing{background:var(--chip)}
+.gl-ev.k-other,.gl-ev.k-re-promo{border:1px dashed var(--line);background:var(--card)}
+.gl-ev.fix{box-shadow:inset 3px 0 0 var(--color-bad)}
+.gl-ev.stalled{opacity:.45}
+.gl-legend{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;font-size:13px;color:var(--mute)}
+
+.gl-settings{font-size:13.5px;color:var(--mute);border-top:1px solid var(--line);padding-top:14px}
+.gl-settings summary{cursor:pointer;color:var(--ink);font-weight:500}
+.gl-settings ul{padding-left:18px;line-height:1.6}
+.gl-queue{list-style:none;padding:0;margin:8px 0 0}
+.gl-queue li{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid var(--line)}
+.gl-warn{font-size:13px;color:var(--rose);margin:0}
+
+@media (max-width:560px){.gl-title{font-size:24px}.gl-search{max-width:none}.gl-bar-end{margin-left:0}.gl-seg button{min-height:40px}.gl-chip{min-height:38px}}
+@media (prefers-reduced-motion:no-preference){.gl-detail{animation:gl-in .2s ease-out}@keyframes gl-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}}
+@media (prefers-reduced-motion:no-preference) and (max-width:1199px){.gl-detail{animation:gl-slide .22s ease-out}@keyframes gl-slide{from{opacity:.4;transform:translateX(40px)}to{opacity:1;transform:none}}}
+@media print{.gl-bar,.gl-tabs{display:none}.gl-board{grid-template-columns:1fr}.gl-col:not(.on){display:flex}}
+</style>
+
+<div class="gl">
+  <header class="gl-top" id="top">
+    <div>
+      <h1 class="gl-title">Global Launches</h1>
+    </div>
+    <div class="gl-seg" role="group" aria-label="View">
+      <button type="button" data-view="list" aria-pressed="true">List</button>
+      <button type="button" data-view="board" aria-pressed="false">Board</button>
+      <button type="button" data-view="calendar" aria-pressed="false">Calendar</button>
+    </div>
+  </header>
+
+  <div class="gl-kpis" role="group" aria-label="Summary" id="summary">
+    <button type="button" class="gl-kpi fix" data-kpi="fix" aria-pressed="false" id="kpi-fix"><span class="gl-kpi-n" data-draw="k_fix" data-source="view_counts" data-field="needs_fix" data-row="0">—</span><span class="gl-kpi-l">Need fixes</span><span class="gl-kpi-s" data-draw="k_fix_s">—</span></button>
+    <button type="button" class="gl-kpi live" data-kpi="live" id="kpi-live"><span class="gl-kpi-n" data-draw="k_live" data-source="view_counts" data-field="live" data-row="0">—</span><span class="gl-kpi-l">Live</span><span class="gl-kpi-s">right now</span></button>
+    <button type="button" class="gl-kpi" data-kpi="upcoming" id="kpi-upcoming"><span class="gl-kpi-n" data-draw="k_up" data-source="view_counts" data-field="coming_up" data-row="0">—</span><span class="gl-kpi-l">Coming up</span><span class="gl-kpi-s" data-draw="k_up_s">—</span></button>
+    <button type="button" class="gl-kpi" data-kpi="ended" id="kpi-ended"><span class="gl-kpi-n" data-draw="k_end" data-source="view_counts" data-field="wrapping" data-row="0">—</span><span class="gl-kpi-l">Wrapping up</span><span class="gl-kpi-s" data-draw="k_end_s">—</span></button>
+  </div>
+
+  <div class="gl-bar" id="filters">
+    <input class="gl-search" type="search" placeholder="Search campaign, store or SKU" aria-label="Search">
+    <select class="gl-select" data-draw="person" aria-label="Store manager" data-source="managers"></select>
+    <details class="gl-fmenu" id="filter-menu">
+      <summary class="gl-chip"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>Filters<span class="gl-fcount" data-draw="fcount"></span></summary>
+      <div class="gl-fpanel">
+        <div class="gl-fgroup"><span class="gl-lbl">Type</span>
+          <div class="gl-fchips">
+            <button type="button" class="gl-chip" data-chip="drop" aria-pressed="false">Product launches</button>
+            <button type="button" class="gl-chip" data-chip="sale" aria-pressed="false">Discounts</button>
+            <button type="button" class="gl-chip" data-chip="vinyl" aria-pressed="false">Vinyl</button>
+            <button type="button" class="gl-chip" data-chip="intl" aria-pressed="false">UK / EU</button>
+          </div>
+        </div>
+        <div class="gl-fgroup"><span class="gl-lbl">Coming up in</span>
+          <div class="gl-seg" role="group" aria-label="Coming up window">
+            <button type="button" data-win="7" aria-pressed="false">7 days</button>
+            <button type="button" data-win="14" aria-pressed="true">14 days</button>
+            <button type="button" data-win="30" aria-pressed="false">30 days</button>
+          </div>
+        </div>
+        <div class="gl-fgroup"><span class="gl-lbl">Show ended</span>
+          <div class="gl-seg" role="group" aria-label="Show ended campaigns">
+            <button type="button" data-wrap="0" aria-pressed="false">Off</button>
+            <button type="button" data-wrap="1" aria-pressed="false">1 day</button>
+            <button type="button" data-wrap="3" aria-pressed="true">3 days</button>
+            <button type="button" data-wrap="7" aria-pressed="false">7 days</button>
+          </div>
+        </div>
+        <button type="button" class="gl-txt-btn" data-clear style="align-self:flex-start">Clear filters</button>
+      </div>
+    </details>
+    <div class="gl-active" data-draw="activef" aria-live="polite"></div>
+  </div>
+
+  <div class="gl-layout" id="board-view">
+    <div class="gl-main">
+      <div id="list-wrap" hidden><div class="gl-list-view" data-draw="listview" data-source="board prelaunch_fixes status_notes campaigns"></div></div>
+      <div id="cal-wrap" hidden>
+        <div class="gl-legend"><span class="gl-kind k-product">Product launch</span><span class="gl-kind k-discount">Discount</span><span class="gl-kind k-marketing">Marketing</span><span class="gl-kind k-other">Other</span><span>A red edge means it needs fixing. Hover for details, click for actions.</span></div>
+        <div class="gl-cal-wrap"><div class="gl-cal" data-draw="calendar" data-source="board"></div></div>
+      </div>
+            <div id="board-wrap">
+      <div class="gl-seg gl-phase-tabs" role="group" aria-label="Phase" style="margin-bottom:12px">
+        <button type="button" data-ph="upcoming" aria-pressed="true">Coming up</button>
+        <button type="button" data-ph="live" aria-pressed="false">Live</button>
+        <button type="button" data-ph="ended" aria-pressed="false">Wrapping up</button>
+      </div>
+      <div class="gl-board">
+        <section class="gl-col" id="col-upcoming" data-col="upcoming">
+          <div class="gl-col-h"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><h2>Coming up</h2><span class="gl-col-n" data-draw="n_upcoming">—</span><span data-draw="f_upcoming"></span></div>
+          <p class="gl-col-sub">Get it set up. Fix anything before launch.</p>
+          <div class="gl-col-body" data-draw="col_upcoming" data-source="board"></div>
+        </section>
+        <section class="gl-col" id="col-live" data-col="live">
+          <div class="gl-col-h"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><h2>Live</h2><span class="gl-col-n" data-draw="n_live">—</span><span data-draw="f_live"></span></div>
+          <p class="gl-col-sub">Watch it and fix anything now. Checked after launch.</p>
+          <div class="gl-col-body" data-draw="col_live" data-source="board"></div>
+        </section>
+        <section class="gl-col" id="col-ended" data-col="ended">
+          <div class="gl-col-h"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4"/></svg><h2>Wrapping up</h2><span class="gl-col-n" data-draw="n_ended">—</span><span data-draw="f_ended"></span></div>
+          <p class="gl-col-sub">Just ended. Make sure sale prices, discounts and free gifts are off.</p>
+          <div class="gl-col-body" data-draw="col_ended" data-source="board"></div>
+        </section>
+      </div>
+      </div>
+    </div>
+    <div class="gl-scrim" id="scrim" data-back hidden></div>
+    <aside class="gl-detail" id="detail" hidden>
+      <button type="button" class="gl-back" data-back><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Close</button>
+      <div data-draw="detail"></div>
+    </aside>
+  </div>
+
+
+  <p class="gl-warn" id="unsaved" hidden>That wasn’t saved. Only editors of this dashboard can change scans or dismiss checks.</p>
+
+  <details class="gl-settings" id="scan-settings">
+    <summary>Scans and settings</summary>
+    <div class="gl-mode">
+      <span>Default for all campaigns</span>
+      <div class="gl-seg" role="group" aria-label="Default scan mode">
+        <button type="button" data-default-mode="auto" aria-pressed="false">Automatic</button>
+        <button type="button" data-default-mode="manual" aria-pressed="false">Manual</button>
+      </div>
+    </div>
+    <ul>
+      <li>Setup check (coming up): offers, sale dates, collections, products, prices, stock, approvals. Automatic at 48 hours and 4 hours before launch.</li>
+      <li>Live check (after launch): pages, prices, add to cart, checkout and shipping. Automatic 15 minutes and 2 hours after launch, then daily while live. US stores only for now.</li>
+      <li>Takedown check (after it ends): sale prices back to normal, discounts and free gifts ended. Collections can stay up. Automatic 1 hour after the end time, US stores only.</li>
+      <li>Automatic scans run from the scheduled scan task. Run buttons queue a scan for the next run.</li>
+      <li>Dismiss a check you know about and it stops counting for everyone until its result changes.</li>
+    </ul>
+    <p>Queued scans</p>
+    <ul class="gl-queue" data-draw="queue" data-source="scan_requests"></ul>
+  </details>
+</div>
+
+<script>
+
+dash.loader('campaigns', {
+  description: 'Flattens each Asana card: store from its board name, card owner from its assignee, the offer (e.g. 40% off) from its brief, custom fields by name, and the LAUNCH/START/END lines, brief, links, SKUs and vinyl keywords read from its name and description.',
+  fn: ({answer}) => {
+    const list = Array.isArray(answer) ? answer : (answer && Array.isArray(answer.data) ? answer.data : null);
+    if (!list) {
+      const msg = answer && (answer.error || (answer.errors && answer.errors[0] && answer.errors[0].message));
+      throw new Error(typeof msg === 'string' ? msg : 'Asana did not return a task list.');
+    }
+    const MONTHS = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+    const TZ = {pst:-8,pt:-8,pdt:-7,est:-5,et:-5,edt:-4,gmt:0,bst:1,utc:0,cst:-6,ct:-6,mst:-7};
+    const parseWhen = (text, refYear) => {
+      if (!text) return null;
+      const t = text.toLowerCase();
+      if (/day\s*\/\s*month|add date|\btbd\b|\btbc\b|\bwip\b/.test(t)) return null;
+      let mo = null, d = null, y = null;
+      let m = t.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(\d{4}))?/);
+      if (m) { mo = MONTHS[m[1]]; d = +m[2]; y = m[3] ? +m[3] : null; }
+      else {
+        m = t.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+        if (m) { mo = +m[1] - 1; d = +m[2]; y = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : null; }
+      }
+      if (mo == null || !(d >= 1 && d <= 31)) return null;
+      const rest = t.slice(m.index + m[0].length);
+      const tm = rest.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/);
+      let h = 9, mi = 0;
+      if (tm) { h = (+tm[1] % 12) + (tm[3] === 'pm' ? 12 : 0); mi = tm[2] ? +tm[2] : 0; }
+      const tz = rest.match(/\b(pst|pdt|pt|est|edt|et|gmt|bst|utc|cst|ct|mst)\b/);
+      const off = tz ? TZ[tz[1]] : -8;
+      return new Date(Date.UTC(y || refYear, mo, d, h - off, mi)).toISOString();
+    };
+    const fromDate = (s) => s ? new Date(Date.UTC(+s.slice(0,4), +s.slice(5,7) - 1, +s.slice(8,10), 17, 0)).toISOString() : null;
+    const cf = (t, name) => {
+      const f = (t.custom_fields || []).find((c) => (c.name || '').trim().toLowerCase() === name);
+      return f && f.display_value ? String(f.display_value).trim() : '';
+    };
+    const SKU_RE = /\b[A-Z]{3,5}[A-Z]{0,2}\d{3,6}[A-Z]{2}(?:_[A-Z0-9]+)?\b/g;
+    const VINYL_RE = /\bvinyl\b|\b\d?\s?LP\b|\b(?:7|10|12)\s?(?:"|”|''|inch|in\b)|\bbox\s?set\b|\bpicture disc\b|\btest pressing\b/gi;
+    return list.map((t) => {
+      const notes = t.notes || '';
+      const lines = notes.split('\n');
+      const lineVal = (re) => {
+        for (const l of lines) { const mm = l.match(re); if (mm && mm[1].trim()) return mm[1].trim(); }
+        return '';
+      };
+      const ref = +(t.due_on || t.start_on || '2026').slice(0, 4);
+      const startLine = lineVal(/^\s*start\s*:\s*(.*)$/i) || lineVal(/^\s*(?:us\s+)?launch(?:\s+cadence)?\s*:\s*(.*)$/i);
+      const endLine = lineVal(/^\s*(?:end|ends)\s*:\s*(.*)$/i);
+      const releaseLine = lineVal(/^\s*(?:release(?:\s+date)?|ship(?:s|ping)?(?:\s+date)?)\s*:\s*(.*)$/i);
+      let launchAt = parseWhen(startLine, ref), dateFrom = 'card';
+      if (!launchAt && t.start_on) { launchAt = fromDate(t.start_on); dateFrom = 'start date'; }
+      if (!launchAt && t.due_on) { launchAt = fromDate(t.due_on); dateFrom = 'due date'; }
+      const endAt = parseWhen(endLine, ref);
+      const links = [], linkIssues = [];
+      for (const l of lines) {
+        const lab = (l.split(':')[0] || '').trim();
+        const urls = l.match(/https?:\/\/[^\s)]+/g) || [];
+        for (const u of urls) {
+          if (/app\.asana\.com/.test(u)) {
+            if (/link|gitly/i.test(lab)) linkIssues.push({label: lab, kind: 'asana'});
+            continue;
+          }
+          links.push({label: lab.length < 40 ? lab : 'Link', url: u});
+        }
+        const mm = l.match(/^\s*([A-Z0-9%][A-Z0-9% ]{1,30}(?:LINK|OFF|GITLY|ALL))\s*:\s*(.*)$/i);
+        if (mm && !urls.length) {
+          const v = mm[2].trim();
+          if (/^(tbd|wip)/i.test(v) || /\btbd link\b/i.test(v)) linkIssues.push({label: mm[1].trim(), kind: 'tbd'});
+          else if (!v && /link/i.test(mm[1])) linkIssues.push({label: mm[1].trim(), kind: 'empty'});
+        }
+      }
+      const skuAll = (notes.match(SKU_RE) || []).filter((s) => !/^TBDSKU/.test(s));
+      const skuUniq = [...new Set(skuAll)];
+      const skuTemplate = /TBDSKU|TBD SKU|SKU 1\b/.test(notes);
+      const vinylHits = [...new Set(((t.name || '') + '\n' + notes).match(VINYL_RE) || [])].map((s) => s.trim());
+      const nrSku = skuUniq.some((s) => /^[A-Z]{3,5}NR\d/.test(s));
+      if (nrSku) vinylHits.push('music SKU');
+      const brief = lineVal(/^\s*brief\s*:\s*(.*)$/i);
+      const offerLines = [brief].concat(lines.filter((l) => !/https?:\/\//.test(l) && !/^\s*brief\s*:/i.test(l)));
+      let offer = '';
+      for (const l of offerLines) {
+        const om = l.match(/(?:up to\s+)?\d{1,2}\s?%\s*off(?:\s+(?:sitewide|select styles|select items|everything|all))?(?:,?\s*including sale)?/i)
+          || l.match(/\bBOGO\w*|buy one,? get one(?: free)?/i)
+          || l.match(/free\s+[a-z'’ ]{0,30}?(?:gift|tee|patch|shipping|poster|tote)(?:\s+with[a-z ]{0,20}\$?\d+)?/i)
+          || l.match(/\$\d+ value for \$\d+/i);
+        if (om) { offer = om[0].trim().replace(/^bogo\w*/i, 'Buy one, get one'); offer = offer.charAt(0).toUpperCase() + offer.slice(1); break; }
+      }
+      const board = ((t.projects || [])[0] || {}).name || '';
+      const codeM = board.match(/\(([A-Z]{3,5})\)/);
+      const store = board.replace(/\([A-Z]{3,5}\)/, '').replace(/\b(E-?Comm(erce)?|Ecommerce|Board|Plan|2026|-)\b/gi, '').replace(/\s+/g, ' ').trim();
+      const code = codeM ? codeM[1] : store.replace(/[^A-Za-z]/g, '').slice(0, 4).toUpperCase();
+      return {
+        gid: String(t.gid), campaign: (t.name || '').trim(), store, code, board, completed: !!t.completed,
+        card_owner: (t.assignee && t.assignee.name) || 'Unassigned',
+        campaign_status: cf(t, 'campaign status'), campaign_type: cf(t, 'campaign type') || cf(t, 'type of campaign'),
+        territory: cf(t, 'territory'), stock_status: cf(t, 'stock status'),
+        due_on: t.due_on || null, start_on: t.start_on || null,
+        launch_text: startLine, end_text: endLine, release_text: releaseLine,
+        launch_at: launchAt, end_at: endAt, date_from: dateFrom,
+        brief, links: JSON.stringify(links), link_issues: JSON.stringify(linkIssues),
+        skus: skuUniq.join(', '), sku_count: skuUniq.length, dup_skus: skuAll.length - skuUniq.length,
+        sku_template: skuTemplate, has_notes: notes.trim().length > 0,
+        is_vinyl: vinylHits.length > 0, vinyl_terms: vinylHits.join(', '), offer,
+        permalink: t.permalink_url || ''
+      };
+    });
+  }
+});
+
+dash.calc('card_checks', {
+  title: 'Asana card checks',
+  description: 'Pre-scan checks on each card’s own details: launch time, brief, links, SKUs and vinyl release info. Owner is the card assignee.',
+  inputs: ['campaigns'],
+  fn: (campaigns) => {
+    const out = [];
+    const now = Date.now();
+    for (const c of campaigns) {
+      const add = (key, status, check, detail) => out.push({check_id: c.gid + '-card-' + key, gid: c.gid, scan: 'pre', area: 'Asana card', status, check, detail, url: c.permalink, owner: c.card_owner});
+      const launch = c.launch_at ? Date.parse(c.launch_at) : null;
+      const soon = launch != null && launch - now < 3 * 864e5;
+      const mkt = /marketing/i.test(c.campaign_type);
+      let n = 0;
+      if (!c.has_notes) { add('empty', soon ? 'red' : 'yellow', 'Card description is empty', 'No launch time, brief, links or SKUs on the card.'); n++; }
+      else {
+        if (c.date_from !== 'card') { add('launch', soon ? 'red' : 'yellow', 'No launch time on the card', 'Using the ' + c.date_from + ' (' + (c.start_on || c.due_on || '—') + ') instead. Fill in the LAUNCH line.'); n++; }
+        if (!c.brief || /concise description/i.test(c.brief)) { add('brief', 'yellow', 'Brief is still the template', 'Add a short description of the campaign.'); n++; }
+        const issues = JSON.parse(c.link_issues || '[]');
+        const asana = issues.filter((i) => i.kind === 'asana').map((i) => i.label);
+        const tbd = issues.filter((i) => i.kind !== 'asana').map((i) => i.label);
+        if (asana.length) { add('asana-link', 'yellow', asana.join(', ') + ' points to Asana, not the store', 'Replace with the storefront URL so it can be scanned.'); n++; }
+        if (tbd.length) { add('tbd-link', soon && !mkt ? 'red' : 'yellow', tbd.length + ' link' + (tbd.length > 1 ? 's' : '') + ' still TBD/WIP', tbd.join(', ')); n++; }
+        if (!JSON.parse(c.links || '[]').length && !mkt) { add('no-link', 'yellow', 'No store link on the card', 'Add a US/UK link so the site scan knows where to look.'); n++; }
+        if (/product/i.test(c.campaign_type) && c.sku_template && !c.sku_count) { add('skus', soon ? 'red' : 'yellow', 'SKUs are still placeholders', 'List the SKUs launching so products can be checked.'); n++; }
+        if (c.dup_skus > 0) { add('dup', 'yellow', 'Duplicate SKU line' + (c.dup_skus > 1 ? 's' : ''), c.dup_skus + ' SKU listed more than once — a product may be missing.'); n++; }
+      }
+      if (c.is_vinyl && !mkt && (!c.release_text || /tbd|tbc/i.test(c.release_text))) { add('vinyl-date', soon ? 'red' : 'yellow', 'Vinyl: no release / ship date on the card', 'Pre-order pages need a ship date. Found: ' + c.vinyl_terms + '.'); n++; }
+      if (/discount|sale/i.test(c.campaign_type) && c.has_notes && !c.end_text) { add('no-end', 'yellow', 'No sale end date on the card', 'Add an END line. Discounts stay in Live until there is one or the card is completed.'); n++; }
+      if (launch != null && launch < now && /in development|placeholder/i.test(c.campaign_status)) { add('status', 'yellow', 'Launched but card says “' + c.campaign_status + '”', 'Update Campaign Status if this is live.'); n++; }
+      if (/on hold/i.test(c.campaign_status)) { add('hold', 'yellow', 'Campaign is On Hold', 'Confirm whether it still launches as scheduled.'); n++; }
+      if (!n) add('ok', 'green', 'Card details complete', 'Launch time, brief, links and SKUs are filled in.');
+    }
+    return out;
+  }
+});
+
+dash.calc('board', {
+  title: 'Campaign board',
+  description: 'One row per campaign: phase, kind (Product launch, Discount, Marketing, Re-promo), offer, acknowledged checks set aside, MF store manager (matched from the store manager list by store name, then by store code), card owner, vinyl flag, scan mode, and the worst result of its pre-scan and post-scan.',
+  inputs: ['campaigns', 'qa_checks', 'card_checks', 'scan_settings', 'scan_requests', 'store_managers', 'scan_acks'],
+  fn: (campaigns, qa, cardChecks, settings, requests, storeManagers, acks) => {
+    const ackBy = {}; acks.forEach((a) => { ackBy[a.id] = a; });
+    const withAck = (q) => { const a = ackBy[q.check_id]; return a && a.status === q.status ? Object.assign({}, q, {status: 'acked'}) : q; };
+    const kindOf = (t) => /marketing/i.test(t) ? 'Marketing' : /discount|sale/i.test(t) ? 'Discount' : /repromo|re-promo/i.test(t) ? 'Re-promo' : /product/i.test(t) ? 'Product launch' : t ? 'Other' : 'Other';
+    const norm = (v) => String(v || '').toLowerCase().replace(/\(closed\)/g, '').replace(/[^a-z0-9]/g, '');
+    const list = storeManagers.filter((m) => m.store && m.manager).map((m) => ({n: norm(m.store), code: String(m.store_code || '').toUpperCase().trim(), manager: String(m.manager).trim()}));
+    const managerFor = (c) => {
+      const n = norm(c.store), b = norm(c.board);
+      let hit = list.find((m) => m.n && (m.n === n || n.startsWith(m.n) || m.n.startsWith(n) || b.includes(m.n)));
+      if (!hit) hit = list.find((m) => m.code.length >= 3 && (c.code.startsWith(m.code) || m.code.startsWith(c.code)));
+      return hit ? hit.manager : 'Unmapped';
+    };
+    const now = Date.now(), DAY = 864e5;
+    const rank = {red: 3, yellow: 2, green: 1, skip: 0, acked: 0};
+    const worstOf = (rows) => rows.some((q) => q.status === 'red') ? 'red' : rows.some((q) => q.status === 'yellow') ? 'yellow' : rows.some((q) => q.status === 'green') ? 'green' : 'unscanned';
+    const def = (settings.find((s) => s.id === 'default') || {}).mode || 'auto';
+    const keep = (c) => {
+      if (/cancel/i.test(c.campaign_status)) return false;
+      if (!c.completed) return true;
+      const e = c.end_at ? Date.parse(c.end_at) : null;
+      return e != null && e < now && now - e < 10 * DAY;
+    };
+    return campaigns.filter(keep).map((c) => {
+      const site = qa.filter((q) => String(q.gid) === c.gid).map(withAck);
+      const pre = site.filter((q) => (q.scan || 'pre') === 'pre');
+      const post = site.filter((q) => q.scan === 'post');
+      const card = cardChecks.filter((q) => q.gid === c.gid).map(withAck);
+      const all = site.concat(card);
+      const cnt = (s) => all.filter((q) => q.status === s).length;
+      const n_red = cnt('red'), n_yellow = cnt('yellow'), n_green = cnt('green'), n_skip = cnt('skip'), n_acked = cnt('acked');
+      const scanned = site.some((q) => q.status !== 'skip' && q.status !== 'acked');
+      const overall = n_red ? 'red' : n_yellow ? 'yellow' : scanned ? 'green' : 'unscanned';
+      const worst = all.slice().sort((a, b) => rank[b.status] - rank[a.status])[0];
+      const launch = c.launch_at ? Date.parse(c.launch_at) : null;
+      const end = c.end_at ? Date.parse(c.end_at) : null;
+      let phase = 'upcoming';
+      if (launch != null && launch <= now) phase = end != null && end < now ? 'ended' : 'live';
+      // No end date: launches, drops and promos stay Live for 7 days, then drop off. Discounts stay Live until the card is completed.
+      if (phase === 'live' && end == null && !/discount|sale/i.test(c.campaign_type) && now - launch > 7 * DAY) phase = 'past';
+      let store_url = '';
+      try { const L = JSON.parse(c.links || '[]'); const u = L.map((x) => x.url).find((u) => /^https?:/.test(u) && !/asana|admin\.shopify|docs\.google|gitly|bit\.ly|drive\.google|dropbox|figma|canva/.test(u)); if (u) store_url = new URL(u).origin; } catch (e) {}
+      const soon = launch != null && launch > now && launch - now <= 7 * DAY;
+      const SETUP = ['Offer', 'Dates', 'Collection', 'Product', 'Pricing', 'Inventory'];
+      const LIVE = SETUP.concat(['Storefront', 'Checkout', 'Shipping']);
+      const areas = phase === 'ended' ? ['Takedown'] : phase === 'live' ? LIVE : SETUP;
+      const fixes = all.filter((q) => (q.status === 'red' || q.status === 'yellow') && (areas.includes(q.area) || (phase !== 'ended' && /-card-(dup|vinyl-date)$/.test(q.check_id)))).sort((a, b) => (a.status === 'red' ? 0 : 1) - (b.status === 'red' ? 0 : 1));
+      const endRows = site.filter((q) => q.scan === 'end');
+      const within = (days) => launch != null && launch > now && launch - now <= days * DAY;
+      let stall = '';
+      if (/on hold/i.test(c.campaign_status)) stall = 'On hold';
+      else if (!c.has_notes) stall = 'Card not filled in';
+      else if (launch != null && launch < now && /in development|placeholder/i.test(c.campaign_status)) stall = 'Launch date passed, card still ' + c.campaign_status;
+      else if (c.date_from !== 'card') stall = 'No launch date on the card';
+      const last = (rows) => rows.filter((q) => q.status !== 'skip').map((q) => q.checked_at).sort().pop() || null;
+      const own = settings.find((s) => s.id === c.gid);
+      const queued = requests.filter((r) => String(r.gid) === c.gid && r.status !== 'done').map((r) => r.kind);
+      return {
+        gid: c.gid, campaign: c.campaign, store: c.store, code: c.code, manager: managerFor(c), card_owner: c.card_owner, store_url,
+        campaign_type: c.campaign_type, campaign_status: c.campaign_status, territory: c.territory,
+        launch_at: c.launch_at, end_at: c.end_at, date_from: c.date_from, phase, soon, within_14d: within(14), within_30d: within(30),
+        stalled: !!stall && !c.completed && phase !== 'ended', stall_reason: stall,
+        fix_label: phase === 'ended' ? 'Take down' : phase === 'live' ? 'Fix now' : 'Fix before launch',
+        fix_list: JSON.stringify(fixes.slice(0, 6).map((q) => ({c: q.check, s: q.status, id: q.check_id}))),
+        end_status: worstOf(endRows), end_checked: last(endRows), post_due: phase === 'live' && !post.some((q) => q.status !== 'skip'), takedown_due: phase === 'ended' && !endRows.some((q) => q.status !== 'skip'),
+        is_vinyl: c.is_vinyl, vinyl_terms: c.vinyl_terms,
+        overall, n_red, n_yellow, n_green, n_skip,
+        pre_status: worstOf(pre.filter((q) => q.area !== 'Marketing')), pre_checked: last(pre.filter((q) => q.area !== 'Marketing')), post_status: worstOf(post), post_checked: last(post),
+        scan_mode: own && own.mode ? own.mode : def, mode_source: own && own.mode ? 'campaign' : 'default',
+        queued: queued.join(','),
+        top_issue: worst && (worst.status === 'red' || worst.status === 'yellow') ? worst.check : '', n_acked,
+        n_fix: fixes.length, fix_top: fixes.length ? fixes[0].check : '', fix_status: fixes.length ? fixes[0].status : '',
+        mkt_check: (site.find((q) => /-mkt-mkt$/.test(q.check_id)) || {}).check || '', mkt_status: (site.find((q) => /-mkt-mkt$/.test(q.check_id)) || {}).status || '',
+        email_check: (site.find((q) => /-mkt-email$/.test(q.check_id)) || {}).check || '', email_status: (site.find((q) => /-mkt-email$/.test(q.check_id)) || {}).status || '', kind: kindOf(c.campaign_type), offer: c.offer,
+        top_status: worst ? worst.status : '', checked_at: last(site), skus: c.skus, permalink: c.permalink
+      };
+    });
+  }
+});
+
+dash.calc('prelaunch_fixes', {
+  title: 'Fixes by phase',
+  description: 'Open problems on campaigns coming up within 30 days (setup: offers, dates, collections, products, prices, stock), live (setup plus storefront, cart, checkout and shipping), or ended in the last 10 days (takedown). Dismissed checks and on-hold cards are left out.',
+  inputs: ['board', 'qa_checks', 'card_checks', 'scan_acks'],
+  fn: (board, qa, cardChecks, acks) => {
+    const now = Date.now(), DAY = 864e5;
+    const SETUP = ['Offer', 'Dates', 'Collection', 'Product', 'Pricing', 'Inventory'];
+    const LIVE = SETUP.concat(['Storefront', 'Checkout', 'Shipping']);
+    const ackBy = {}; acks.forEach((a) => { ackBy[a.id] = a; });
+    const by = {}; board.forEach((b) => { by[b.gid] = b; });
+    return qa.concat(cardChecks).filter((q) => {
+      const b = by[String(q.gid)]; if (!b || b.stalled) return false;
+      const l = b.launch_at ? Date.parse(b.launch_at) : null;
+      if (b.phase === 'upcoming' && !(l != null && l - now <= 30 * DAY)) return false;
+      if (!(q.status === 'red' || q.status === 'yellow')) return false;
+      const a = ackBy[q.check_id]; if (a && a.status === q.status) return false;
+      const areas = b.phase === 'ended' ? ['Takedown'] : b.phase === 'live' ? LIVE : SETUP;
+      return areas.includes(q.area) || (b.phase !== 'ended' && /-card-(dup|vinyl-date)$/.test(q.check_id));
+    }).map((q) => { const b = by[String(q.gid)]; return {check_id: q.check_id, gid: b.gid, campaign: b.campaign, store: b.store, manager: b.manager, phase: b.phase, launch_at: b.launch_at, area: q.area, status: q.status, check: q.check, detail: q.detail || '', owner: q.owner || b.card_owner}; })
+      .sort((x, y) => (Date.parse(x.launch_at || 0) - Date.parse(y.launch_at || 0)) || (x.status === 'red' ? -1 : 1));
+  }
+});
+
+dash.calc('summary', {
+  title: 'Launch summary',
+  description: 'Counts of campaigns live now, launching within 7 days, vinyl launches, and by worst check status.',
+  inputs: ['board'],
+  fn: (board) => [{
+    live: board.filter((b) => b.phase === 'live' && !b.stalled).length,
+    wrapping: board.filter((b) => b.phase === 'ended').length,
+    next_7d: board.filter((b) => b.soon && !b.stalled).length,
+    needs_fix: board.filter((b) => b.n_fix && !b.stalled).length,
+    next_14d: board.filter((b) => b.within_14d && !b.stalled).length,
+    not_ready: board.filter((b) => b.stalled).length,
+    launching_7d: board.filter((b) => b.soon).length,
+    issues: board.filter((b) => b.overall === 'red').length,
+    attention: board.filter((b) => b.overall === 'yellow').length,
+    clear: board.filter((b) => b.overall === 'green').length,
+    unscanned: board.filter((b) => b.overall === 'unscanned').length,
+    vinyl: board.filter((b) => b.is_vinyl && b.phase !== 'ended').length,
+    total: board.length
+  }]
+});
+
+dash.calc('managers', {
+  title: 'Campaigns by store manager',
+  description: 'Per MF store manager: campaigns in the window, and among the ready ones (not stalled): live now, launching within 7 and 14 days, with issues, needing attention, and vinyl.',
+  inputs: ['board'],
+  fn: (board) => {
+    const by = {};
+    board.forEach((b) => {
+      const m = by[b.manager] = by[b.manager] || {manager: b.manager, campaigns: 0, live: 0, next_7d: 0, next_14d: 0, wrapping: 0, needs_fix: 0, issues: 0, attention: 0, vinyl: 0, not_ready: 0};
+      m.campaigns++; if (b.stalled) { m.not_ready++; return; } if (b.n_fix) m.needs_fix++; if (b.phase === 'ended') m.wrapping++; if (b.phase === 'live') m.live++; if (b.soon) m.next_7d++; if (b.within_14d) m.next_14d++;
+      if (b.overall === 'red') m.issues++; if (b.overall === 'yellow') m.attention++; if (b.is_vinyl) m.vinyl++;
+    });
+    return Object.values(by).sort((a, c) => (c.issues - a.issues) || (c.campaigns - a.campaigns));
+  }
+});
+
+dash.calc('view_counts', {
+  title: 'Counts in this view',
+  description: 'For the chosen store manager and time windows (before search and type filters): campaigns that need fixes, live now, coming up within the window, ended within the "show ended" window, and not ready.',
+  inputs: ['board'],
+  fn: (board) => {
+    const p = dash.params(), mgr = p.mgr || '', win = +p.win || 14, wrap = p.wrap == null || p.wrap === '' ? 3 : +p.wrap;
+    const now = Date.now(), DAY = 864e5;
+    const inView = (b) => {
+      if (mgr && b.manager !== mgr) return false;
+      if (b.phase === 'live') return true;
+      if (b.phase === 'upcoming') { const l = b.launch_at ? Date.parse(b.launch_at) : null; return l != null && l - now <= win * DAY; }
+      if (b.phase === 'ended') { const e = b.end_at ? Date.parse(b.end_at) : null; return !!wrap && e != null && now - e <= wrap * DAY; }
+      return false;
+    };
+    const shown = board.filter(inView), ready = shown.filter((b) => !b.stalled);
+    return [{
+      needs_fix: ready.filter((b) => b.n_fix).length,
+      live: ready.filter((b) => b.phase === 'live').length,
+      coming_up: ready.filter((b) => b.phase === 'upcoming').length,
+      wrapping: ready.filter((b) => b.phase === 'ended').length,
+      not_ready: shown.filter((b) => b.stalled).length
+    }];
+  }
+});
+</script>
+
+<script>
+(function () {
+  const pad = (n) => String(n).padStart(2, '0');
+  const iso = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  const t = new Date();
+  dash.setParams({from: iso(new Date(t.getTime() - 14 * 864e5)), to: iso(new Date(t.getTime() + 35 * 864e5))});
+
+  const get = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
+  const put = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+  const S = window.glS = {manager: get('gl-manager', ''), win: +get('gl-win', '14') || 14, wrap: +get('gl-wrap', '3'), view: get('gl-view', 'list'), chips: {}, q: '', ph: 'upcoming', sel: null, open: {}, showStalled: false};
+  if (!['list', 'board', 'calendar'].includes(S.view)) S.view = 'list';
+  const pushParams = () => dash.setParams(Object.assign({}, dash.params(), {mgr: S.manager || '', win: S.win, wrap: S.wrap}));
+  pushParams();
+
+  const TZ = 'America/Los_Angeles';
+  const fmt = (o) => new Intl.DateTimeFormat('en-US', Object.assign({timeZone: TZ}, o));
+  const fDay = fmt({day: 'numeric'}), fWk = fmt({weekday: 'short'}), fMon = fmt({month: 'short'}), fTime = fmt({hour: 'numeric', minute: '2-digit'});
+  const fShort = fmt({weekday: 'short', month: 'short', day: 'numeric'});
+  const fFull = fmt({weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'});
+  const fKey = fmt({year: 'numeric', month: '2-digit', day: '2-digit'});
+  const when = (s) => s ? fFull.format(new Date(s)) + ' PT' : 'Date to be confirmed';
+  const rel = (s) => {
+    if (!s) return '';
+    const ms = Date.parse(s) - Date.now(), a = Math.abs(ms), d = Math.floor(a / 864e5), h = Math.floor((a % 864e5) / 36e5);
+    const x = d ? d + (d === 1 ? ' day' : ' days') : h ? h + (h === 1 ? ' hr' : ' hrs') : Math.max(1, Math.floor(a / 6e4)) + ' min';
+    return ms > 0 ? 'in ' + x : x + ' ago';
+  };
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const NS = 'http://www.w3.org/2000/svg';
+  const ICONS = {
+    alert: ['M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z', 'M12 9v4', 'M12 17h.01'],
+    check: ['M20 6 9 17l-5-5'],
+    clock: ['M12 6v6l4 2', 'M22 12A10 10 0 1 1 2 12a10 10 0 0 1 20 0z'],
+    x: ['M18 6 6 18', 'M6 6l12 12'],
+    ext: ['M15 3h6v6', 'M10 14 21 3', 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6'],
+    pause: ['M10 15V9', 'M14 15V9', 'M22 12A10 10 0 1 1 2 12a10 10 0 0 1 20 0z']
+  };
+  const icon = (name) => { const s = document.createElementNS(NS, 'svg'); s.setAttribute('class', 'i'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('aria-hidden', 'true'); (ICONS[name] || []).forEach((d) => { const p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); s.append(p); }); return s; };
+  const safe = (u) => typeof u === 'string' && /^https?:/i.test(u);
+  const mark = (e, src, field, where) => { e.dataset.source = src; e.dataset.field = field; if (where) e.dataset.where = where; return e; };
+  const enc = (v) => encodeURIComponent(String(v));
+  const initials = (n) => (n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
+  const cleanName = (n) => String(n || '').replace(/^\s*[A-Z][A-Z/]{1,6}\s*[-–:]\s*/, '').trim() || n;
+  const kindCls = (k) => 'k-' + String(k || 'other').toLowerCase().replace(/[^a-z]+/g, '-').replace(/^product.*/, 'product');
+  window.glH = {fDay, fWk, fMon, fTime, fShort, fKey, when, rel, el, icon, safe, mark, enc, initials, cleanName, kindCls};
+
+  const DAY = 864e5;
+  window.glMatch = (r) => {
+    if (S.manager && r.manager !== S.manager) return false;
+    const now = Date.now(), l = r.launch_at ? Date.parse(r.launch_at) : null;
+    if (r.phase === 'upcoming' && !(l != null && l - now <= S.win * DAY)) return false;
+    if (r.phase === 'ended') { const e = r.end_at ? Date.parse(r.end_at) : null; if (!S.wrap || e == null || now - e > S.wrap * DAY) return false; }
+    if (S.chips.fix && !r.n_fix) return false;
+    if (S.chips.vinyl && !r.is_vinyl) return false;
+    if (S.chips.sale && !/discount|sale/i.test(r.campaign_type + ' ' + r.campaign)) return false;
+    if (S.chips.drop && !/product/i.test(r.campaign_type)) return false;
+    if (S.chips.intl && !/uk|europe|eu\b|aus/i.test(r.territory || '')) return false;
+    const q = S.q.trim().toLowerCase();
+    if (q && !(r.campaign + ' ' + r.store + ' ' + r.code + ' ' + (r.skus || '')).toLowerCase().includes(q)) return false;
+    return true;
+  };
+  window.glRows = (phase) => {
+    const b = dash.data('board');
+    if (b.status !== 'ok') return null;
+    const rows = b.data.filter((r) => r.phase === phase && window.glMatch(r));
+    const by = phase === 'ended' ? (a, c) => Date.parse(c.end_at || 0) - Date.parse(a.end_at || 0) : (a, c) => Date.parse(a.launch_at || 0) - Date.parse(c.launch_at || 0);
+    return rows.sort((a, c) => (a.stalled - c.stalled) || ((c.n_fix ? 1 : 0) - (a.n_fix ? 1 : 0)) * (phase === 'live' ? 1 : 0) || by(a, c));
+  };
+
+  const draws = ['listview', 'person', 'fcount', 'activef', 'k_fix', 'k_fix_s', 'k_live', 'k_up', 'k_up_s', 'k_end', 'k_end_s', 'col_upcoming', 'col_live', 'col_ended', 'n_upcoming', 'n_live', 'n_ended', 'f_upcoming', 'f_live', 'f_ended', 'detail', 'calendar'];
+  const attrs = () => {
+    const set = (sel, fn) => document.querySelectorAll(sel).forEach((b) => b.setAttribute('aria-pressed', String(!!fn(b))));
+    set('[data-view]', (b) => b.dataset.view === S.view);
+    set('[data-win]', (b) => +b.dataset.win === S.win);
+    set('[data-wrap]', (b) => +b.dataset.wrap === S.wrap);
+    document.querySelectorAll('#board-wrap').forEach((e) => { e.hidden = S.view !== 'board'; });
+    document.querySelectorAll('#list-wrap').forEach((e) => { e.hidden = S.view !== 'list'; });
+    const endedRows = window.glRows('ended'); const showEnded = !!S.wrap && !!(endedRows && endedRows.length);
+    document.querySelectorAll('#col-ended').forEach((e) => { e.hidden = !showEnded; });
+    document.querySelectorAll('[data-ph="ended"]').forEach((e) => { e.hidden = !showEnded; });
+    document.querySelectorAll('.gl-board').forEach((e) => e.classList.toggle('two', !showEnded));
+    if (!showEnded && S.ph === 'ended') S.ph = 'upcoming';
+    set('[data-kpi="fix"]', () => S.chips.fix);
+    const nType = ['drop', 'sale', 'vinyl', 'intl'].filter((k) => S.chips[k]).length;
+    document.querySelectorAll('#filter-menu').forEach((e) => e.classList.toggle('on', nType > 0));
+    if (!S.wrap && S.ph === 'ended') S.ph = 'upcoming';
+    set('[data-chip]', (b) => S.chips[b.dataset.chip]);
+    set('[data-ph]', (b) => b.dataset.ph === S.ph);
+    document.querySelectorAll('[data-col]').forEach((c) => c.classList.toggle('on', c.dataset.col === S.ph));
+    document.querySelectorAll('#board-view').forEach((e) => { e.classList.toggle('has-detail', !!S.sel); });
+    document.querySelectorAll('#cal-wrap').forEach((e) => { e.hidden = S.view !== 'calendar'; });
+    document.querySelectorAll('#detail').forEach((e) => { e.hidden = !S.sel; });
+    document.querySelectorAll('#scrim').forEach((e) => { e.hidden = !S.sel || !window.matchMedia('(max-width: 1199px)').matches; });
+    const s = dash.data('scan_settings');
+    const mode = s.status === 'ok' ? ((s.data.find((r) => r.id === 'default') || {}).mode || 'auto') : null;
+    document.querySelectorAll('[data-default-mode]').forEach((b) => b.setAttribute('aria-pressed', String(mode === b.dataset.defaultMode)));
+  };
+  window.glAttrs = attrs;
+  const sync = () => { attrs(); draws.forEach((n) => dash.draw(n)); };
+  window.glSync = sync;
+  const on = (sel, fn) => document.querySelectorAll(sel).forEach((b) => b.addEventListener('click', () => { fn(b); sync(); }));
+  on('[data-view]', (b) => { S.view = b.dataset.view; put('gl-view', S.view); });
+  on('[data-wrap]', (b) => { S.wrap = +b.dataset.wrap; put('gl-wrap', String(S.wrap)); pushParams(); });
+  on('[data-win]', (b) => { S.win = +b.dataset.win; put('gl-win', String(S.win)); pushParams(); });
+  on('[data-clear]', () => { ['drop', 'sale', 'vinyl', 'intl', 'fix'].forEach((k) => { S.chips[k] = false; }); S.q = ''; document.querySelectorAll('.gl-search').forEach((i) => { i.value = ''; }); });
+  const goTo = (ph) => {
+    if (S.view === 'calendar') { S.view = 'list'; put('gl-view', S.view); }
+    if (ph === 'ended' && !S.wrap) { S.wrap = 3; put('gl-wrap', '3'); pushParams(); }
+    S.ph = ph; sync();
+    const el = document.getElementById(S.view === 'board' ? 'col-' + ph : 'list-' + ph);
+    if (el) el.scrollIntoView({behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start'});
+  };
+  document.querySelectorAll('[data-kpi]').forEach((b) => b.addEventListener('click', () => {
+    const k = b.dataset.kpi;
+    if (k === 'fix') { S.chips.fix = !S.chips.fix; if (S.view === 'calendar') { S.view = 'list'; put('gl-view', S.view); } sync(); return; }
+    goTo(k);
+  }));
+  document.addEventListener('click', (ev) => { document.querySelectorAll('#filter-menu[open]').forEach((m) => { if (!m.contains(ev.target)) m.open = false; }); });
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Escape') return;
+    let closed = false;
+    document.querySelectorAll('#filter-menu[open]').forEach((m) => { m.open = false; closed = true; });
+    if (!closed && S.sel) window.glClose();
+  });
+  on('[data-chip]', (b) => { S.chips[b.dataset.chip] = !S.chips[b.dataset.chip]; });
+  on('[data-ph]', (b) => { S.ph = b.dataset.ph; });
+  document.querySelectorAll('.gl-search').forEach((i) => i.addEventListener('input', () => { S.q = i.value; sync(); }));
+  document.querySelectorAll('[data-back]').forEach((b) => b.addEventListener('click', () => window.glClose()));
+
+  window.glSetManager = (m) => { S.manager = m; S.sel = null; put('gl-manager', m); pushParams(); sync(); };
+  const narrow = () => window.matchMedia('(max-width: 1199px)').matches;
+  const placeDrawer = () => {
+    document.querySelectorAll('#detail').forEach((d) => {
+      if (!S.sel || !narrow()) { d.style.top = ''; return; }
+      const lay = document.getElementById('board-view'); if (!lay) return;
+      const lr = lay.getBoundingClientRect();
+      const top = Math.max(0, Math.min(12 - lr.top, lay.offsetHeight - Math.min(d.offsetHeight || 400, lay.offsetHeight)));
+      d.style.top = top + 'px';
+    });
+  };
+  window.glPlaceDrawer = placeDrawer;
+  window.glSelect = (gid) => { S.sel = S.sel === gid ? null : gid; sync(); placeDrawer(); };
+  window.glClose = () => { S.sel = null; sync(); };
+  window.addEventListener('scroll', placeDrawer, {passive: true, capture: true});
+  window.addEventListener('resize', () => { attrs(); placeDrawer(); });
+
+  const showUnsaved = (ok) => document.querySelectorAll('#unsaved').forEach((p) => { p.hidden = ok; });
+  window.glSave = async (path, row) => {
+    let ok = true;
+    try { const db = await claude.use('db'); if (!db) throw new Error('no db'); await db.doc(path).set(row); } catch (e) { ok = false; }
+    showUnsaved(ok); return ok;
+  };
+  window.glQueue = async (gid, kind, campaign) => {
+    let by = ''; try { const u = await claude.use('user'); by = u ? await u.id() : ''; } catch (e) {}
+    return window.glSave('data/scan/requests/' + gid + '-' + kind, {gid, kind, campaign, requested_at: new Date().toISOString(), requested_by: by, status: 'queued'});
+  };
+  window.glAck = async (q, undo) => {
+    let ok = true;
+    try {
+      const db = await claude.use('db'); if (!db) throw new Error('no db');
+      const ref = db.doc('data/scan/acks/' + q.check_id);
+      if (undo) await ref.delete();
+      else { let by = ''; try { const u = await claude.use('user'); by = u ? await u.id() : ''; } catch (e) {} await ref.set({status: q.status, check: q.check, gid: String(q.gid), at: new Date().toISOString(), by}); }
+    } catch (e) { ok = false; }
+    showUnsaved(ok); return ok;
+  };
+  document.querySelectorAll('[data-default-mode]').forEach((b) => b.addEventListener('click', () => { window.glSave('data/scan/settings/default', {mode: b.dataset.defaultMode}); }));
+  dash.onData(() => attrs());
+  attrs();
+})();
+</script>
+
+<script>
+(function () {
+  const H = window.glH, S = window.glS;
+  const PH = {upcoming: 'Coming up', live: 'Live', ended: 'Wrapping up'};
+
+  const mgrNames = () => {
+    const sm = dash.data('store_managers'), m = dash.data('managers'); const names = new Set();
+    if (sm.status === 'ok') sm.data.forEach((r) => { if (r.manager && !/closed/i.test(r.store || '')) names.add(String(r.manager).trim()); });
+    if (m.status === 'ok') m.data.forEach((r) => names.add(r.manager));
+    return [...names];
+  };
+  dash.draw('person', (sel) => {
+    const names = mgrNames().filter((n) => n && n !== 'Unmapped').sort((a, b) => a.localeCompare(b));
+    if (S.manager && names.length && !names.includes(S.manager)) { S.manager = ''; pushP(); }
+    sel.replaceChildren(new Option('Everyone', ''), ...names.map((n) => new Option(n, n)));
+    if (mgrNames().includes('Unmapped')) sel.append(new Option('Unmapped stores', 'Unmapped'));
+    sel.value = S.manager || '';
+    sel.onchange = () => window.glSetManager(sel.value);
+  });
+  const pushP = () => dash.setParams(Object.assign({}, dash.params(), {mgr: S.manager || '', win: S.win, wrap: S.wrap}));
+  const vc = () => { const v = dash.data('view_counts'); return v.status === 'ok' && v.data && v.data[0] ? v.data[0] : null; };
+  [['k_fix', 'needs_fix'], ['k_live', 'live'], ['k_up', 'coming_up'], ['k_end', 'wrapping']].forEach(([name, f]) => {
+    dash.draw(name, (e) => { const r = vc(); e.textContent = r ? String(r[f]) : '—'; });
+  });
+  dash.draw('k_fix_s', (e) => { e.textContent = S.chips.fix ? 'Showing only these' : 'Tap to show only these'; });
+  dash.draw('k_up_s', (e) => { e.textContent = 'next ' + S.win + ' days'; });
+  dash.draw('k_end_s', (e) => { e.textContent = S.wrap ? 'ended last ' + S.wrap + (S.wrap === 1 ? ' day' : ' days') : 'hidden, tap to show'; });
+  dash.draw('fcount', (e) => { const n = ['drop', 'sale', 'vinyl', 'intl'].filter((k) => S.chips[k]).length; e.textContent = n ? String(n) : ''; });
+  dash.draw('activef', (e) => {
+    const on = S.q.trim() || ['drop', 'sale', 'vinyl', 'intl', 'fix'].some((k) => S.chips[k]);
+    const b = dash.data('board');
+    if (!on || b.status !== 'ok') { e.replaceChildren(); return; }
+    const all = ['live', 'upcoming', 'ended'];
+    const base = b.data.filter((r) => all.includes(r.phase) && !r.stalled && (!S.manager || r.manager === S.manager));
+    const shown = all.reduce((a, ph) => a + (window.glRows(ph) || []).filter((r) => !r.stalled).length, 0);
+    const t = H.el('span', null, 'Filtered: showing ' + shown + (shown === 1 ? ' campaign' : ' campaigns'));
+    const c = H.el('button', 'gl-txt-btn', 'Clear'); c.type = 'button';
+    c.addEventListener('click', () => { ['drop', 'sale', 'vinyl', 'intl', 'fix'].forEach((k) => { S.chips[k] = false; }); S.q = ''; document.querySelectorAll('.gl-search').forEach((i) => { i.value = ''; }); window.glSync(); });
+    e.replaceChildren(t, c);
+  });
+
+  const fixList = (r) => { try { return JSON.parse(r.fix_list || '[]'); } catch (e) { return []; } };
+  const card = (r) => {
+    const w = 'gid=' + H.enc(r.gid);
+    const c = H.el('button', 'gl-card' + (r.stalled ? ' stalled' : '')); c.type = 'button'; c.id = 'card-' + r.gid;
+    c.setAttribute('aria-selected', String(S.sel === r.gid));
+    c.addEventListener('click', () => window.glSelect(r.gid));
+    const top = H.el('div', 'gl-c-top');
+    top.append(H.mark(H.el('span', 'gl-c-store', r.store), 'board', 'store', w));
+    top.querySelector('.gl-c-store').classList.add('big');
+    let wh;
+    if (r.phase === 'live') { wh = H.el('span', 'gl-when gl-live', 'Live' + (r.end_at ? ', ends ' + H.fShort.format(new Date(r.end_at)) : '')); }
+    else if (r.phase === 'ended') wh = H.el('span', 'gl-when', 'Ended ' + (r.end_at ? H.fShort.format(new Date(r.end_at)) : ''));
+    else wh = H.el('span', 'gl-when', r.launch_at ? H.fShort.format(new Date(r.launch_at)) + (r.date_from === 'card' ? ', ' + H.fTime.format(new Date(r.launch_at)) : '') : 'No date');
+    top.append(H.mark(wh, 'board', r.phase === 'ended' ? 'end_at' : 'launch_at', w));
+    c.append(top, H.mark(H.el('div', 'gl-c-title sub', H.cleanName(r.campaign)), 'board', 'campaign', w));
+    const meta = H.el('div', 'gl-c-meta');
+    meta.append(H.mark(H.el('span', 'gl-kind ' + H.kindCls(r.kind), r.kind), 'board', 'kind', w));
+    if (r.offer) meta.append(H.mark(H.el('span', 'gl-offer', r.offer), 'board', 'offer', w));
+    if (r.is_vinyl) meta.append(H.el('span', 'gl-vinyl', 'Vinyl'));
+    c.append(meta);
+    if (r.stalled) {
+      c.append(H.mark(H.el('div', 'gl-stall', 'Not ready: ' + r.stall_reason), 'board', 'stall_reason', w));
+    } else if (r.n_fix) {
+      const f = H.el('div', 'gl-fix'); const fh = H.el('div', 'gl-fix-h');
+      fh.append(H.icon('alert'), H.mark(H.el('span', null, r.fix_label), 'board', 'fix_label', w), H.mark(H.el('span', 'n', String(r.n_fix)), 'board', 'n_fix', w));
+      const ul = H.el('ul'); const list = fixList(r);
+      list.slice(0, 2).forEach((x) => ul.append(H.el('li', x.s, x.c)));
+      f.append(fh, ul);
+      if (r.n_fix > 2) f.append(H.el('div', 'more', '+' + (r.n_fix - 2) + ' more'));
+      c.append(f);
+    } else if (r.phase === 'live' && r.post_due) {
+      const d = H.el('div', 'gl-due'); d.append(H.icon('clock'), document.createTextNode(r.scan_mode === 'manual' ? 'Live check not run. Run it from the panel.' : 'Live check due. Runs automatically after launch.')); c.append(d);
+    } else if (r.phase === 'ended' && r.takedown_due) {
+      const d = H.el('div', 'gl-due'); d.append(H.icon('clock'), document.createTextNode(r.scan_mode === 'manual' ? 'Takedown check not run.' : 'Takedown check due. Runs automatically after it ends.')); c.append(d);
+    } else if ((r.phase === 'upcoming' && r.pre_checked) || (r.phase === 'live' && r.post_checked) || (r.phase === 'ended' && r.end_checked)) {
+      const d = H.el('div', 'gl-ok'); d.append(H.icon('check'), document.createTextNode(r.phase === 'ended' ? 'Taken down' : r.phase === 'live' ? 'Live checks passed' : 'Setup looks good')); c.append(d);
+    } else {
+      const d = H.el('div', 'gl-idle'); d.append(H.icon('clock'), document.createTextNode(r.phase === 'upcoming' ? 'Setup check not run yet' : 'Not checked yet')); c.append(d);
+    }
+    const foot = H.el('div', 'gl-c-foot');
+    const who = H.el('span', 'gl-who'); who.append(H.el('span', 'gl-av', H.initials(r.manager)), H.mark(H.el('span', null, r.manager), 'board', 'manager', w)); foot.append(who);
+    if (r.phase === 'upcoming' && r.launch_at) foot.append(H.el('span', null, H.rel(r.launch_at)));
+    if (r.phase !== 'ended' && (/red|yellow/.test(r.mkt_status) || /red|yellow/.test(r.email_status))) foot.append(H.mark(H.el('span', 'gl-apv', 'Approvals pending'), 'board', /red|yellow/.test(r.email_status) ? 'email_status' : 'mkt_status', w));
+    const snd = dash.data('status_notes'); const sn = snd.status === 'ok' ? snd.data.find((x) => String(x.gid) === r.gid) : null;
+    if (sn && sn.waiting_on && sn.waiting_on !== 'Nothing') { const wt = H.el('span', 'gl-wait'); wt.append(document.createTextNode('Waiting on: '), H.mark(H.el('span', null, sn.waiting_on), 'status_notes', 'waiting_on', w)); foot.append(wt); }
+    c.append(foot);
+    return c;
+  };
+
+  ['upcoming', 'live', 'ended'].forEach((ph) => {
+    dash.draw('col_' + ph, (box) => {
+      const b = dash.data('board');
+      if (b.status === 'loading') { box.replaceChildren(H.el('div', 'gl-card dash-skeleton'), H.el('div', 'gl-card dash-skeleton')); return; }
+      if (b.status === 'error') { box.replaceChildren(H.el('p', 'gl-empty', 'Campaigns didn’t load. Check the Asana connection in Sources.')); return; }
+      if (b.status !== 'ok') { box.replaceChildren(H.el('p', 'gl-empty', '—')); return; }
+      const rows = window.glRows(ph) || [];
+      const ready = rows.filter((r) => !r.stalled), stalled = rows.filter((r) => r.stalled);
+      const out = ready.map(card);
+      if (!ready.length) out.push(H.el('p', 'gl-empty', ph === 'upcoming' ? 'Nothing launching in the next ' + S.win + ' days.' : ph === 'live' ? 'Nothing live right now.' : 'Nothing ended in the last ' + S.wrap + (S.wrap === 1 ? ' day.' : ' days.')));
+      if (stalled.length) {
+        const key = 'stall_' + ph;
+        if (S.open[key]) stalled.forEach((r) => out.push(card(r)));
+        const t = H.el('button', 'gl-more', S.open[key] ? 'Hide not-ready cards' : stalled.length + ' not-ready card' + (stalled.length > 1 ? 's' : '') + ' (on hold, no date or not filled in)'); t.type = 'button';
+        t.addEventListener('click', () => { S.open[key] = !S.open[key]; dash.draw('col_' + ph); });
+        out.push(t);
+      }
+      box.replaceChildren(...out);
+    });
+    dash.draw('n_' + ph, (e) => { const rows = window.glRows(ph); e.textContent = rows ? String(rows.filter((r) => !r.stalled).length) : '—'; });
+    dash.draw('f_' + ph, (e) => {
+      const rows = window.glRows(ph) || []; const n = rows.filter((r) => !r.stalled && r.n_fix).length;
+      if (!n) { e.replaceChildren(); e.className = ''; return; }
+      e.className = 'gl-col-fix'; e.textContent = n + (ph === 'ended' ? ' to take down' : ph === 'live' ? ' to fix now' : ' to fix');
+    });
+  });
+
+  const chk = (src, q, fallbackOwner, acked) => {
+    const row = H.el('div', 'gl-chk ' + (acked ? 'acked ' : '') + q.status); row.id = 'k-' + q.check_id;
+    const wh = 'check_id=' + H.enc(q.check_id);
+    row.append(H.mark(H.el('div', 'gl-chk-t', q.check), src, 'check', wh));
+    if (q.detail) row.append(H.mark(H.el('div', 'gl-chk-d', q.detail), src, 'detail', wh));
+    const f = H.el('div', 'gl-chk-f');
+    if (q.status === 'red' || q.status === 'yellow') f.append(H.el('span', null, 'Owner: ' + (q.owner || fallbackOwner)));
+    if (acked) f.append(H.el('span', null, 'Dismissed ' + H.rel(acked.at)));
+    if (H.safe(q.url)) { const a = H.el('a', null, 'Open'); a.href = q.url; a.target = '_blank'; a.rel = 'noopener'; f.append(a); }
+    if (q.status === 'red' || q.status === 'yellow') {
+      const ab = H.el('button', 'gl-txt-btn', acked ? 'Undo dismiss' : 'Dismiss'); ab.type = 'button';
+      ab.addEventListener('click', async () => { ab.disabled = true; ab.textContent = 'Saving…'; const ok = await window.glAck(q, !!acked); if (!ok) { ab.disabled = false; ab.textContent = acked ? 'Undo dismiss' : 'Dismiss'; } });
+      f.append(ab);
+    }
+    if (f.childNodes.length) row.append(f);
+    return row;
+  };
+  const SCAN_WORD = {red: 'Issues found', yellow: 'Some things to check', green: 'Passed', unscanned: 'Not run yet'};
+
+  dash.draw('detail', (d) => {
+    if (!S.sel) { d.replaceChildren(); return; }
+    const b = dash.data('board'), cs = dash.data('campaigns'), qa = dash.data('qa_checks'), cc = dash.data('card_checks'), pf = dash.data('prelaunch_fixes');
+    if (b.status !== 'ok' || cs.status !== 'ok') { d.replaceChildren(H.el('p', 'gl-sec-s', 'Loading…')); return; }
+    const r = b.data.find((x) => x.gid === S.sel);
+    if (!r) { d.replaceChildren(H.el('p', 'gl-sec-s', 'This campaign is no longer on the board.')); return; }
+    const c = cs.data.find((x) => x.gid === r.gid) || {};
+    const w = 'gid=' + H.enc(r.gid);
+    const ak = dash.data('scan_acks'); const ackBy = {}; if (ak.status === 'ok') ak.data.forEach((a) => { ackBy[a.id] = a; });
+    const ackOf = (q) => { const a = ackBy[q.check_id]; return a && a.status === q.status ? a : null; };
+    const parts = [];
+    const top = H.el('div', 'gl-d-top'); const ttl = H.el('div');
+    ttl.append(H.el('div', 'gl-d-store', r.store + ', ' + PH[r.phase].toLowerCase() + ', managed by ' + r.manager), H.mark(H.el('h2', 'gl-d-title', r.campaign), 'board', 'campaign', w));
+    const meta = H.el('div', 'gl-c-meta'); meta.append(H.mark(H.el('span', 'gl-kind ' + H.kindCls(r.kind), r.kind), 'board', 'kind', w));
+    if (r.offer) meta.append(H.mark(H.el('span', 'gl-offer', r.offer), 'board', 'offer', w));
+    if (r.is_vinyl) meta.append(H.el('span', 'gl-vinyl', 'Vinyl'));
+    ttl.append(meta);
+    const x = H.el('button', 'gl-x'); x.type = 'button'; x.setAttribute('aria-label', 'Close'); x.append(H.icon('x')); x.addEventListener('click', window.glClose);
+    top.append(ttl, x); parts.push(top);
+
+    const acts = H.el('div', 'gl-d-acts');
+    if (H.safe(r.permalink)) { const a = H.el('a', 'gl-btn'); a.append(document.createTextNode('Asana card'), H.icon('ext')); a.href = r.permalink; a.target = '_blank'; a.rel = 'noopener'; acts.append(a); }
+    let links = []; try { links = JSON.parse(c.links || '[]'); } catch (_) {}
+    links.filter((l) => H.safe(l.url) && !/admin\.shopify|docs\.google/.test(l.url)).slice(0, 2).forEach((l) => { const a = H.el('a', 'gl-btn'); a.append(document.createTextNode(l.label || 'Store'), H.icon('ext')); a.href = l.url; a.target = '_blank'; a.rel = 'noopener'; acts.append(a); });
+    parts.push(acts);
+
+    const myFix = pf.status === 'ok' ? pf.data.filter((q) => q.gid === r.gid) : [];
+    const fixIds = new Set(myFix.map((q) => q.check_id));
+    const findFull = (id) => (qa.status === 'ok' ? qa.data.find((q) => q.check_id === id) : null) || (cc.status === 'ok' ? cc.data.find((q) => q.check_id === id) : null);
+    const srcOf = (id) => qa.status === 'ok' && qa.data.some((q) => q.check_id === id) ? 'qa_checks' : 'card_checks';
+    if (r.stalled) { const n = H.el('div', 'gl-idle'); n.append(H.icon('pause'), H.mark(H.el('span', null, 'Not ready: ' + r.stall_reason), 'board', 'stall_reason', w)); parts.push(n); }
+    if (myFix.length) {
+      const f = H.el('section', 'gl-fix'); f.id = 'fix-box'; const fh = H.el('div', 'gl-fix-h'); fh.append(H.icon('alert'), H.el('span', null, r.fix_label), H.el('span', 'n', String(myFix.length)));
+      f.append(fh); myFix.forEach((q) => f.append(chk(srcOf(q.check_id), findFull(q.check_id) || q, r.card_owner)));
+      parts.push(f);
+    }
+    const snd = dash.data('status_notes'); const sn = snd.status === 'ok' ? snd.data.find((x) => String(x.gid) === r.gid) : null;
+    if (sn) {
+      const box = H.el('section', 'gl-where'); box.id = 'where-at';
+      box.append(H.mark(H.el('h3', null, sn.headline), 'status_notes', 'headline', w), H.mark(H.el('p', null, sn.blurb), 'status_notes', 'blurb', w));
+      const wp = H.el('p', 'w'); wp.append(document.createTextNode('Waiting on: '), H.mark(H.el('span', null, sn.waiting_on), 'status_notes', 'waiting_on', w), document.createTextNode('. From Asana comments, ' + H.when(sn.as_of) + '.'));
+      box.append(wp); parts.push(box);
+    }
+
+    const kv = H.el('dl', 'gl-kv');
+    const add = (k, v, field) => { if (!v) return; kv.append(H.el('dt', null, k)); const dd = H.el('dd', null, v); if (field) H.mark(dd, 'campaigns', field, w); kv.append(dd); };
+    add('Launch', c.launch_text || (H.when(r.launch_at) + ' (from the ' + r.date_from + ')'), c.launch_text ? 'launch_text' : null);
+    add('Ends', c.end_text, 'end_text'); add('Release', c.release_text, 'release_text');
+    add('Card status', c.campaign_status, 'campaign_status'); add('Territory', c.territory, 'territory'); add('Card owner', c.card_owner, 'card_owner');
+    parts.push(kv);
+
+    const site = qa.status === 'ok' ? qa.data.filter((q) => String(q.gid) === r.gid) : [];
+    const card = cc.status === 'ok' ? cc.data.filter((q) => q.gid === r.gid) : [];
+    const queued = (r.queued || '').split(',').filter(Boolean);
+    const order = {red: 0, yellow: 1, skip: 2, green: 3};
+    const section = (id, title, sub, items, kind, statusField, checked) => {
+      items = items.filter(([, q]) => !fixIds.has(q.check_id));
+      const box = H.el('section', 'gl-sec'); box.id = id;
+      const h = H.el('div', 'gl-sec-h'); const l = H.el('div'); l.append(H.el('h3', null, title));
+      if (statusField) l.append(H.mark(H.el('p', 'gl-sec-s', SCAN_WORD[r[statusField]] + (checked ? ', last run ' + H.when(checked) : '') + (sub ? '. ' + sub : '')), 'board', statusField, w));
+      else if (sub) l.append(H.el('p', 'gl-sec-s', sub));
+      h.append(l);
+      if (kind) {
+        const btn = H.el('button', 'gl-btn', queued.includes(kind) ? 'Queued' : 'Run now'); btn.type = 'button'; btn.disabled = queued.includes(kind);
+        btn.addEventListener('click', async () => { btn.disabled = true; btn.textContent = 'Queuing…'; const ok = await window.glQueue(r.gid, kind, r.campaign); btn.textContent = ok ? 'Queued' : 'Run now'; btn.disabled = ok; });
+        h.append(btn);
+      }
+      box.append(h);
+      const isOpen = (q) => (q.status === 'red' || q.status === 'yellow') && !ackOf(q);
+      items.filter(([, q]) => isOpen(q)).sort((a, z) => order[a[1].status] - order[z[1].status]).forEach(([s, q]) => box.append(chk(s, q, r.card_owner)));
+      const rest = items.filter(([, q]) => !isOpen(q));
+      if (rest.length) {
+        const key = r.gid + id;
+        if (S.open[key]) rest.forEach(([s, q]) => box.append(chk(s, q, r.card_owner, ackOf(q))));
+        const t = H.el('button', 'gl-txt-btn', S.open[key] ? 'Hide' : rest.length + ' passed, not run or dismissed'); t.type = 'button'; t.style.marginTop = '6px';
+        t.addEventListener('click', () => { S.open[key] = !S.open[key]; dash.draw('detail'); });
+        box.append(t);
+      }
+      if (!items.length) box.append(H.el('p', 'gl-sec-s', 'Nothing here yet.'));
+      return box;
+    };
+    const tag = (src) => (q) => [src, q];
+    const pre = site.filter((q) => (q.scan || 'pre') === 'pre' && q.area !== 'Marketing').map(tag('qa_checks'));
+    const mkt = site.filter((q) => q.area === 'Marketing').map(tag('qa_checks'));
+    const post = site.filter((q) => q.scan === 'post').map(tag('qa_checks'));
+    const end = site.filter((q) => q.scan === 'end').map(tag('qa_checks'));
+    const order3 = r.phase === 'ended' ? ['end', 'post', 'pre'] : r.phase === 'live' ? ['post', 'pre', 'end'] : ['pre', 'post', 'end'];
+    const secs = {
+      pre: () => section('setup', 'Setup check', 'Before launch', pre, 'pre', 'pre_status', r.pre_checked),
+      post: () => section('live-check', 'Live check', r.phase === 'upcoming' ? 'Runs after launch' : 'Pages, cart, checkout, shipping', post, 'post', 'post_status', r.post_checked),
+      end: () => section('takedown', 'Takedown check', r.phase === 'ended' ? 'Prices, collections, banners, discounts' : 'Runs after it ends', end, 'end', r.end_checked ? 'end_status' : null, r.end_checked)
+    };
+    order3.forEach((k) => { if (k === 'end' && r.phase !== 'ended' && !end.length && !r.end_at) return; parts.push(secs[k]()); });
+    parts.push(section('approvals', 'Approvals', 'Marketing and email in Asana', mkt, null, null, null));
+    parts.push(section('card', 'Asana card', 'Launch time, links, SKUs', card.map(tag('card_checks')), null, null, null));
+
+    const mode = H.el('div', 'gl-mode'); mode.append(H.el('span', null, 'Scans' + (r.mode_source === 'default' ? ' (default)' : '')));
+    const seg = H.el('div', 'gl-seg'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Scan mode for this campaign');
+    [['auto', 'Automatic'], ['manual', 'Manual']].forEach(([v, lab]) => { const bt = H.el('button', null, lab); bt.type = 'button'; bt.setAttribute('aria-pressed', String(r.scan_mode === v)); bt.addEventListener('click', () => window.glSave('data/scan/settings/' + r.gid, {mode: v})); seg.append(bt); });
+    mode.append(seg); parts.push(mode);
+
+    if (c.brief && !/concise description/i.test(c.brief)) { const s = H.el('section', 'gl-sec'); s.append(H.el('h3', null, 'Brief'), H.mark(H.el('p', 'gl-chk-d', c.brief), 'campaigns', 'brief', w)); parts.push(s); }
+    if (c.skus) { const s = H.el('section', 'gl-sec'); s.append(H.el('h3', null, 'SKUs')); const ul = H.el('ul', 'gl-list'); c.skus.split(', ').forEach((k) => ul.append(H.el('li', null, k))); H.mark(ul, 'campaigns', 'skus', w); s.append(ul); parts.push(s); }
+    if (links.length) { const s = H.el('section', 'gl-sec'); s.append(H.el('h3', null, 'Links')); const ul = H.el('ul', 'gl-list'); links.forEach((l) => { const li = H.el('li'); li.append(H.el('span', null, (l.label || 'Link') + ': ')); if (H.safe(l.url)) { const a = H.el('a', 'gl-link', l.url.replace(/^https?:\/\//, '')); a.href = l.url; a.target = '_blank'; a.rel = 'noopener'; li.append(a); } ul.append(li); }); s.append(ul); parts.push(s); }
+    d.replaceChildren(...parts);
+  });
+
+  const popContent = (r, pinned) => {
+    const p = H.el('div', 'gl-pop' + (pinned ? '' : ' tip')); p.id = pinned ? 'cal-pop' : 'cal-tip';
+    const w = 'gid=' + H.enc(r.gid);
+    p.append(H.mark(H.el('div', 'gl-pop-store', r.store), 'board', 'store', w), H.mark(H.el('div', 'gl-pop-promo', H.cleanName(r.campaign)), 'board', 'campaign', w));
+    const k = H.el('div', 'gl-pop-row'); k.append(H.el('span', 'gl-kind ' + H.kindCls(r.kind), r.kind)); if (r.offer) k.append(H.el('span', 'gl-offer', r.offer)); if (r.is_vinyl) k.append(H.el('span', 'gl-vinyl', 'Vinyl')); p.append(k);
+    p.append(H.el('div', 'gl-pop-dates', (r.launch_at ? 'Starts ' + H.when(r.launch_at) : 'No start date') + (r.end_at ? '. Ends ' + H.when(r.end_at) : r.phase === 'live' ? '. No end date' : '') + '.'));
+    p.append(H.el('div', 'gl-pop-dates', 'Manager: ' + r.manager + (r.card_owner && r.card_owner !== r.manager ? '. Card: ' + r.card_owner : '')));
+    if (r.stalled) p.append(H.el('div', 'gl-pop-row', 'Not ready: ' + r.stall_reason));
+    else if (r.n_fix) { const h = H.el('div', 'gl-pop-row'); h.append(H.el('span', 'gl-pill fix', r.fix_label + ' ' + r.n_fix)); p.append(h); const ul = H.el('ul'); fixList(r).slice(0, 3).forEach((x) => ul.append(H.el('li', null, x.c))); p.append(ul); }
+    else { const [cls, txt] = statusPill(r); const h = H.el('div', 'gl-pop-row'); h.append(H.el('span', 'gl-pill ' + cls, txt)); p.append(h); }
+    if (pinned) {
+      const x = H.el('button', 'gl-pop-x'); x.type = 'button'; x.setAttribute('aria-label', 'Close'); x.append(H.icon('x')); x.addEventListener('click', (ev) => { ev.stopPropagation(); S.pop = null; dash.draw('calendar'); }); p.append(x);
+      const a = H.el('div', 'gl-pop-acts');
+      const det = H.el('button', 'gl-btn', 'Details'); det.type = 'button'; det.addEventListener('click', (ev) => { ev.stopPropagation(); S.pop = null; window.glSelect(r.gid); }); a.append(det);
+      if (H.safe(r.store_url)) { const st = H.el('a', 'gl-btn'); st.append(document.createTextNode('Store'), H.icon('ext')); st.href = r.store_url; st.target = '_blank'; st.rel = 'noopener'; a.append(st); }
+      if (H.safe(r.permalink)) { const as = H.el('a', 'gl-btn'); as.append(document.createTextNode('Asana'), H.icon('ext')); as.href = r.permalink; as.target = '_blank'; as.rel = 'noopener'; a.append(as); }
+      p.append(a);
+    }
+    return p;
+  };
+  const placePop = (box, p, target) => {
+    const br = box.getBoundingClientRect(), tr = target.getBoundingClientRect();
+    let left = tr.left - br.left, top = tr.bottom - br.top + 6;
+    const pw = p.offsetWidth || 300, ph = p.offsetHeight || 160;
+    left = Math.max(4, Math.min(left, box.scrollWidth - pw - 4));
+    if (top + ph > box.scrollHeight && tr.top - br.top - ph - 6 > 0) top = tr.top - br.top - ph - 6;
+    p.style.left = left + 'px'; p.style.top = top + 'px';
+  };
+  dash.draw('calendar', (box) => {
+    const b = dash.data('board');
+    if (b.status !== 'ok') { box.replaceChildren(H.el('p', 'gl-empty', b.status === 'loading' ? 'Loading…' : '—')); return; }
+    const DAY = 864e5, now = Date.now(), n = S.win;
+    const days = []; for (let k = -2; k < n; k++) days.push(new Date(now + k * DAY));
+    const keys = days.map((d) => H.fKey.format(d)); const N = days.length;
+    const idx = (s) => { if (!s) return null; const i = keys.indexOf(H.fKey.format(new Date(s))); if (i >= 0) return i; return Date.parse(s) < now ? -1 : N; };
+    const rows = ['upcoming', 'live', 'ended'].flatMap((ph) => window.glRows(ph) || []);
+    const evs = rows.map((r) => { const a = idx(r.launch_at); if (a == null) return null; let e = r.end_at ? idx(r.end_at) : a; if (r.phase === 'live' && !r.end_at) e = Math.max(a, 2); if (e < 0 || a >= N) return null; return {r, a: Math.max(a, 0), e: Math.min(e, N - 1), clip: a < 0}; }).filter(Boolean);
+    const colW = N > 16 ? 60 : 88;
+    const cols = '170px repeat(' + N + ', minmax(' + colW + 'px, 1fr))';
+    const head = H.el('div', 'gl-cal-row gl-cal-head'); head.style.gridTemplateColumns = cols;
+    head.append(H.el('div', 'gl-cal-store', S.manager || 'Everyone'));
+    days.forEach((d, k) => { const c = H.el('div', 'gl-cal-day' + (k === 2 ? ' today' : '')); c.append(document.createTextNode(H.fWk.format(d)), H.el('b', null, H.fDay.format(d))); head.append(c); });
+    if (!evs.length) { box.replaceChildren(head, H.el('p', 'gl-empty', 'No launches in this range.')); return; }
+    const out = [head]; let pinnedTarget = null, pinnedRow = null;
+    const showTip = (ev, r) => { if (S.pop) return; box.querySelectorAll('#cal-tip').forEach((t) => t.remove()); const t = popContent(r, false); box.append(t); placePop(box, t, ev.currentTarget); };
+    const hideTip = () => box.querySelectorAll('#cal-tip').forEach((t) => t.remove());
+    [...new Set(evs.map((v) => v.r.store))].forEach((st) => {
+      const list = evs.filter((v) => v.r.store === st).sort((x, y) => x.a - y.a); const lanes = [];
+      list.forEach((v) => { let l = 0; while (lanes[l] != null && lanes[l] >= v.a) l++; lanes[l] = v.e; v.l = l; });
+      const row = H.el('div', 'gl-cal-row'); row.style.gridTemplateColumns = cols;
+      const name = H.el('div', 'gl-cal-store'); name.style.gridRow = '1 / span ' + Math.max(1, lanes.length);
+      const su = list[0].r.store_url;
+      if (H.safe(su)) { const a = H.el('a', 'gl-row-store', st); a.href = su; a.target = '_blank'; a.rel = 'noopener'; a.style.fontSize = '13.5px'; name.append(a); } else name.append(document.createTextNode(st));
+      if (!S.manager) name.append(H.el('small', null, list[0].r.manager)); row.append(name);
+      days.forEach((d, k) => { const bg = H.el('div', 'gl-cal-bg' + (k === 2 ? ' today' : '')); bg.style.gridColumn = String(k + 2); bg.style.gridRow = '1 / span ' + Math.max(1, lanes.length); row.append(bg); });
+      list.forEach((v) => {
+        const r = v.r, w = 'gid=' + H.enc(r.gid);
+        const ev = H.el('button', 'gl-ev ' + H.kindCls(r.kind) + (r.n_fix && !r.stalled ? ' fix' : '') + (r.stalled ? ' stalled' : '')); ev.type = 'button'; ev.id = 'ev-' + r.gid;
+        ev.style.gridColumn = (v.a + 2) + ' / ' + (v.e + 3); ev.style.gridRow = String(v.l + 1);
+        ev.setAttribute('aria-label', r.store + ', ' + H.cleanName(r.campaign));
+        ev.setAttribute('aria-expanded', String(S.pop === r.gid));
+        ev.append(H.mark(H.el('span', null, (v.clip ? '← ' : '') + (r.kind === 'Discount' && r.offer ? r.offer : H.cleanName(r.campaign))), 'board', r.kind === 'Discount' && r.offer ? 'offer' : 'campaign', w));
+        ev.addEventListener('pointerenter', (e) => showTip(e, r)); ev.addEventListener('pointerleave', hideTip); ev.addEventListener('focus', (e) => showTip(e, r)); ev.addEventListener('blur', hideTip);
+        ev.addEventListener('click', (e) => { e.stopPropagation(); hideTip(); S.pop = S.pop === r.gid ? null : r.gid; dash.draw('calendar'); });
+        if (S.pop === r.gid) { pinnedTarget = ev; pinnedRow = r; }
+        row.append(ev);
+      });
+      out.push(row);
+    });
+    box.style.minWidth = (170 + N * colW) + 'px';
+    box.replaceChildren(...out);
+    if (pinnedTarget) { const p = popContent(pinnedRow, true); box.append(p); placePop(box, p, pinnedTarget); }
+    else if (S.pop) S.pop = null;
+    box.onclick = (e) => { if (S.pop && !e.target.closest('#cal-pop')) { S.pop = null; dash.draw('calendar'); } };
+  });
+
+  const statusPill = (r) => {
+    if (r.stalled) return ['idle', 'Not ready'];
+    if (r.n_fix) return ['fix', r.fix_label + ' ' + r.n_fix];
+    if ((r.phase === 'live' && r.post_due) || (r.phase === 'ended' && r.takedown_due)) return ['due', 'Check due'];
+    if ((r.phase === 'upcoming' && r.pre_checked) || (r.phase === 'live' && r.post_checked) || (r.phase === 'ended' && r.end_checked)) return ['ok', r.phase === 'ended' ? 'Taken down' : r.phase === 'live' ? 'Passing' : 'Ready'];
+    return ['idle', 'Not checked'];
+  };
+  const RANK = {fix: 0, idle: 1, due: 2, ok: 3};
+  const firstName = (n) => String(n || '').trim().split(/\s+/)[0] || '';
+  const promoName = (r) => {
+    let c = H.cleanName(r.campaign); const st = String(r.store || '').trim();
+    if (st && c.toLowerCase().startsWith(st.toLowerCase())) { const rest = c.slice(st.length).replace(/^\s*[-–:|]\s*/, '').trim(); if (rest) c = rest; }
+    return c;
+  };
+  const lvPanel = (r, fixes) => {
+    const w = 'gid=' + H.enc(r.gid);
+    const cs = dash.data('campaigns'), qa = dash.data('qa_checks'), cc = dash.data('card_checks'), snd = dash.data('status_notes');
+    const c = cs.status === 'ok' ? (cs.data.find((x) => x.gid === r.gid) || {}) : {};
+    const full = (id) => (qa.status === 'ok' ? qa.data.find((q) => q.check_id === id) : null) || (cc.status === 'ok' ? cc.data.find((q) => q.check_id === id) : null);
+    const p = H.el('div', 'gl-x-panel'); p.id = 'x-' + r.gid;
+    if (r.stalled) { const n = H.el('div', 'gl-idle'); n.append(H.icon('pause'), H.mark(H.el('span', null, 'Not ready: ' + r.stall_reason), 'board', 'stall_reason', w)); p.append(n); }
+    if (fixes.length) {
+      const sec = H.el('section', 'gl-x-sec'); sec.append(H.el('h4', null, r.fix_label));
+      fixes.forEach((q) => {
+        const fq = full(q.check_id) || q; const wh = 'check_id=' + H.enc(q.check_id);
+        const it = H.el('div', 'gl-x-fix');
+        const tx = H.el('div');
+        tx.append(H.mark(H.el('div', 'gl-x-fix-t', q.check), 'prelaunch_fixes', 'check', wh));
+        if (fq.detail) tx.append(H.el('div', 'gl-x-fix-d', fq.detail));
+        const f = H.el('div', 'gl-x-fix-f');
+        f.append(H.el('span', null, 'Owner: ' + (q.owner || r.card_owner || '—')));
+        if (H.safe(fq.url)) { const a = H.el('a', null, 'Open'); a.href = fq.url; a.target = '_blank'; a.rel = 'noopener'; f.append(a); }
+        tx.append(f);
+        const x = H.el('button', 'gl-btn sm', 'Dismiss'); x.type = 'button';
+        x.addEventListener('click', async () => { x.disabled = true; x.textContent = 'Saving…'; const ok = await window.glAck(q, false); if (!ok) { x.disabled = false; x.textContent = 'Dismiss'; } });
+        it.append(H.el('span', 'gl-todo-bar ' + q.status), tx, x); sec.append(it);
+      });
+      p.append(sec);
+    }
+    const sn = snd.status === 'ok' ? snd.data.find((x) => String(x.gid) === r.gid) : null;
+    if (sn) {
+      const n = H.el('div', 'gl-x-note');
+      n.append(H.mark(H.el('b', null, sn.headline), 'status_notes', 'headline', w), H.mark(H.el('span', null, sn.blurb), 'status_notes', 'blurb', w));
+      if (sn.waiting_on) { const wp = H.el('div', 'w'); wp.append(document.createTextNode('Waiting on: '), H.mark(H.el('span', null, sn.waiting_on), 'status_notes', 'waiting_on', w)); n.append(wp); }
+      p.append(n);
+    }
+    const kv = H.el('dl', 'gl-x-kv');
+    const add = (k, v, field) => { if (!v) return; const d = H.el('div'); d.append(H.el('dt', null, k)); const dd = H.el('dd', null, v); if (field) H.mark(dd, 'campaigns', field, w); d.append(dd); kv.append(d); };
+    add('Launch', c.launch_text || (r.launch_at ? H.when(r.launch_at) : ''), c.launch_text ? 'launch_text' : null);
+    add('Ends', c.end_text, 'end_text'); add('Territory', c.territory, 'territory'); add('Card owner', c.card_owner, 'card_owner');
+    if (kv.childNodes.length) p.append(kv);
+    const acts = H.el('div', 'gl-x-acts');
+    const link = (label, url) => { const a = H.el('a', 'gl-btn sm'); a.append(document.createTextNode(label), H.icon('ext')); a.href = url; a.target = '_blank'; a.rel = 'noopener'; acts.append(a); };
+    if (H.safe(r.store_url)) link('Store', r.store_url);
+    if (H.safe(r.permalink)) link('Asana card', r.permalink);
+    let links = []; try { links = JSON.parse(c.links || '[]'); } catch (_) {}
+    links.filter((l) => H.safe(l.url) && !/admin\.shopify|docs\.google/.test(l.url) && l.url.indexOf(r.store_url || '§') !== 0).slice(0, 2).forEach((l) => link(l.label || 'Link', l.url));
+    const more = H.el('button', 'gl-btn sm', 'All checks and details'); more.type = 'button';
+    more.addEventListener('click', () => window.glSelect(r.gid));
+    acts.append(more); p.append(acts);
+    return p;
+  };
+  const lvRow = (r, ph, fixesBy) => {
+    const w = 'gid=' + H.enc(r.gid);
+    const key = 'lvx_' + r.gid, open = !!S.open[key];
+    const fixes = fixesBy[r.gid] || [];
+    const wrap = H.el('div', 'gl-lv-item');
+    const row = H.el('div', 'gl-row' + (r.stalled ? ' stalled' : '')); row.id = 'row-' + r.gid; row.tabIndex = 0; row.setAttribute('role', 'button');
+    row.setAttribute('aria-expanded', String(open)); row.setAttribute('aria-controls', 'x-' + r.gid);
+    const toggle = () => { S.open[key] = !S.open[key]; dash.draw('listview'); const n = document.getElementById('row-' + r.gid); if (n) n.focus({preventScroll: true}); };
+    row.addEventListener('click', toggle);
+    row.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); return; }
+      if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+        const all = [...document.querySelectorAll('.gl-list-view .gl-row')]; const i = all.indexOf(row);
+        const n = all[i + (ev.key === 'ArrowDown' ? 1 : -1)]; if (n) { ev.preventDefault(); n.focus(); }
+      }
+    });
+    const dd = H.el('div', 'gl-row-d');
+    if (ph === 'upcoming') {
+      const dt = r.launch_at;
+      dd.append(H.mark(H.el('span', null, dt && r.date_from === 'card' ? H.fTime.format(new Date(dt)) : dt ? 'Time TBC' : 'No date'), 'board', 'launch_at', w));
+    } else if (ph === 'live') {
+      dd.append(H.mark(H.el('span', 'gl-live-dot', 'Live'), 'board', 'launch_at', w));
+      dd.append(H.el('small', null, r.end_at ? 'ends ' + H.fShort.format(new Date(r.end_at)) : 'no end date'));
+    } else {
+      dd.append(H.mark(H.el('span', null, r.end_at ? H.fShort.format(new Date(r.end_at)) : 'No date'), 'board', 'end_at', w));
+      dd.append(H.el('small', null, 'ended'));
+    }
+    const tt = H.el('div', 'gl-row-t');
+    tt.append(H.mark(H.el('span', 'gl-row-store', r.store), 'board', 'store', w));
+    const line = H.el('div', 'gl-row-line');
+    line.append(H.mark(H.el('span', 'gl-row-promo', promoName(r)), 'board', 'campaign', w));
+    if (r.offer) { line.append(H.el('span', 'gl-sep', '·')); line.append(H.mark(H.el('span', 'gl-offer-t', r.offer), 'board', 'offer', w)); }
+    if (!/discount/i.test(r.kind || '')) line.append(H.mark(H.el('span', 'gl-kind ' + H.kindCls(r.kind), r.kind), 'board', 'kind', w));
+    tt.append(line);
+    const [cls, txt] = statusPill(r);
+    let pill;
+    if (cls === 'fix') {
+      pill = H.el('span', 'gl-pill fix'); pill.title = r.fix_label;
+      pill.append(H.icon('alert'), H.mark(H.el('span', null, String(r.n_fix)), 'board', 'n_fix', w), document.createTextNode(r.n_fix === 1 ? ' fix' : ' fixes'));
+    } else pill = H.mark(H.el('span', 'gl-pill ' + cls, txt), 'board', 'overall', w);
+    const own = H.el('span', 'gl-own', S.manager ? '' : firstName(r.manager)); own.title = r.manager || '';
+    const ch = chev(); ch.setAttribute('class', 'i gl-chev');
+    row.append(dd, tt, pill, own, ch);
+    wrap.append(row);
+    if (open) wrap.append(lvPanel(r, fixes));
+    return wrap;
+  };
+  const NSV = 'http://www.w3.org/2000/svg';
+  const chev = () => { const s = document.createElementNS(NSV, 'svg'); s.setAttribute('class', 'i'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('aria-hidden', 'true'); const p = document.createElementNS(NSV, 'path'); p.setAttribute('d', 'M6 9l6 6 6-6'); s.append(p); return s; };
+  const byRank = (a, c) => (RANK[statusPill(a)[0]] - RANK[statusPill(c)[0]]) || (Date.parse(a.launch_at || 0) - Date.parse(c.launch_at || 0)) || String(a.store).localeCompare(String(c.store));
+  const dayLabel = (iso) => {
+    const k = H.fKey.format(new Date(iso)), now = Date.now();
+    if (k === H.fKey.format(new Date(now))) return 'Today';
+    if (k === H.fKey.format(new Date(now + 864e5))) return 'Tomorrow';
+    return H.rel(iso);
+  };
+  dash.draw('listview', (box) => {
+    const b = dash.data('board'), pf = dash.data('prelaunch_fixes');
+    if (b.status !== 'ok') { box.replaceChildren(H.el('p', 'gl-empty', b.status === 'loading' ? 'Loading…' : b.status === 'error' ? 'Campaigns didn’t load.' : '—')); return; }
+    const fixesBy = {};
+    if (pf.status === 'ok' && Array.isArray(pf.data)) pf.data.forEach((q) => { (fixesBy[q.gid] = fixesBy[q.gid] || []).push(q); });
+    const out = [];
+    const block = (id, title, meta, rows, ph) => {
+      const sec = H.el('section', 'gl-lv-sec'); sec.id = id;
+      const h = H.el('h2', 'gl-lv-h'); h.append(document.createTextNode(title));
+      meta.forEach((m) => h.append(m));
+      sec.append(h);
+      const lv = H.el('div', 'gl-lv'); rows.forEach((r) => lv.append(lvRow(r, ph, fixesBy))); sec.append(lv);
+      return sec;
+    };
+    const fixMeta = (rows) => { const n = rows.filter((r) => r.n_fix).length; return n ? [H.el('span', 'gl-lv-fixn', n + ' need' + (n === 1 ? 's' : '') + ' fixes')] : []; };
+    const ready = (ph) => (window.glRows(ph) || []).filter((r) => !r.stalled);
+    const live = ready('live').sort(byRank);
+    if (live.length) out.push(block('list-live', 'Live', [H.el('span', 'n', String(live.length)), ...fixMeta(live)], live, 'live'));
+    const up = ready('upcoming');
+    const days = []; const dayBy = {};
+    up.forEach((r) => { const k = r.launch_at ? H.fKey.format(new Date(r.launch_at)) : 'none'; if (!dayBy[k]) { dayBy[k] = {k, iso: r.launch_at, rows: []}; days.push(dayBy[k]); } dayBy[k].rows.push(r); });
+    days.sort((a, c) => Date.parse(a.iso || 0) - Date.parse(c.iso || 0));
+    if (up.length) {
+      const hd = H.el('h2', 'gl-lv-group'); hd.id = 'list-upcoming'; hd.append(document.createTextNode('Coming up'), H.el('span', 'n', String(up.length))); out.push(hd);
+      days.forEach((d) => {
+        const rows = d.rows.sort(byRank);
+        const title = d.iso ? H.fShort.format(new Date(d.iso)) : 'No date';
+        const meta = [];
+        if (d.iso) meta.push(H.el('span', 'gl-lv-rel', dayLabel(d.iso)));
+        meta.push(H.el('span', 'n', rows.length + (rows.length === 1 ? ' launch' : ' launches')), ...fixMeta(rows));
+        out.push(block('list-day-' + d.k.replace(/[^0-9a-z]/gi, ''), title, meta, rows, 'upcoming'));
+      });
+    }
+    if (S.wrap) {
+      const ended = ready('ended');
+      if (ended.length) out.push(block('list-ended', 'Wrapping up', [H.el('span', 'n', String(ended.length)), ...fixMeta(ended)], ended, 'ended'));
+    }
+    const stalled = ['live', 'upcoming'].reduce((a, ph) => a.concat((window.glRows(ph) || []).filter((r) => r.stalled)), []);
+    if (stalled.length) {
+      const sec = H.el('section', 'gl-lv-sec'); sec.id = 'list-notready';
+      const t = H.el('button', 'gl-lv-toggle'); t.type = 'button'; t.setAttribute('aria-expanded', String(!!S.open['lv_stall']));
+      t.append(chev(), document.createTextNode('Not ready'), H.el('span', 'n', String(stalled.length)), H.el('span', 'gl-lv-rel', 'on hold, no date or not filled in'));
+      t.addEventListener('click', () => { S.open['lv_stall'] = !S.open['lv_stall']; dash.draw('listview'); });
+      sec.append(t);
+      if (S.open['lv_stall']) { const lv = H.el('div', 'gl-lv'); stalled.forEach((r) => lv.append(lvRow(r, r.phase, fixesBy))); sec.append(lv); }
+      out.push(sec);
+    }
+    box.replaceChildren(...(out.length ? out : [H.el('p', 'gl-empty', 'Nothing matches these filters.')]));
+  });
+
+  dash.draw('queue', (ul) => {
+    const q = dash.data('scan_requests');
+    if (q.status !== 'ok') { ul.replaceChildren(); return; }
+    const open = q.data.filter((r) => r.status !== 'done');
+    if (!open.length) { ul.replaceChildren(H.el('li', null, 'Nothing queued.')); return; }
+    ul.replaceChildren(...open.map((r) => { const li = H.el('li'); li.append(H.mark(H.el('span', null, (r.campaign || r.gid) + ', ' + r.kind + ' check'), 'scan_requests', 'campaign', 'id=' + H.enc(r.id)), H.el('span', null, H.rel(r.requested_at))); return li; }));
+  });
+})();
+</script>

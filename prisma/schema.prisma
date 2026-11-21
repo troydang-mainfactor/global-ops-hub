@@ -1,0 +1,219 @@
+// Global Ops Hub data model. See SPEC.md §5.
+// Additions to the spec sketch are marked "added".
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Store {
+  id                String           @id @default(cuid())
+  name              String
+  code              String           @unique // SKU prefix: STOK, FALR, MEGA…
+  managerId         String?
+  manager           User?            @relation(fields: [managerId], references: [id])
+  shipheroAccountId String?
+  shipheroAccount   ShipheroAccount? @relation(fields: [shipheroAccountId], references: [id])
+  asanaProjectId    String? // E-Comm board for launch cards
+  enabled           Boolean          @default(false) // rollout switch
+  products          Product[]
+  purchaseOrders    PurchaseOrder[]
+}
+
+model Warehouse {
+  id                  String           @id @default(cuid())
+  emailCode           String           @unique // "MAINF MI", "BSI UK"
+  name                String? // added
+  shipheroAccountId   String?
+  shipheroAccount     ShipheroAccount? @relation(fields: [shipheroAccountId], references: [id])
+  shipheroWarehouseId String?
+  inShiphero          Boolean          @default(true)
+}
+
+model ShipheroAccount {
+  id                String      @id @default(cuid())
+  name              String
+  type              String // direct | 3pl
+  tokenRef          String // NAME of the env var holding the refresh token, never the token
+  customerAccountId String?
+  stores            Store[]
+  warehouses        Warehouse[]
+}
+
+model Product {
+  sku       String    @id // base SKU, e.g. FALRNR103455RD
+  storeId   String?
+  store     Store?    @relation(fields: [storeId], references: [id])
+  name      String? // Design Name
+  isVinyl   Boolean   @default(false)
+  variants  Variant[]
+  createdAt DateTime  @default(now())
+}
+
+model Variant {
+  sku            String    @id // FALRNR103455RD_MD
+  productSku     String
+  product        Product   @relation(fields: [productSku], references: [sku])
+  inShiphero     Boolean   @default(false)
+  onHand         Int       @default(0)
+  available      Int       @default(0)
+  allocated      Int       @default(0)
+  backorder      Int       @default(0)
+  preorder       Boolean   @default(false)
+  preorderSource String? // order_tag | product_tag | asana | sell_ahead
+  syncedAt       DateTime?
+}
+
+model PurchaseOrder {
+  id                String    @id @default(cuid())
+  orderNo           String // PO094330 or SO0058136
+  kind              String // PO | SO
+  warehouseCode     String
+  storeId           String? // added: store of the SKUs on this PO
+  store             Store?    @relation(fields: [storeId], references: [id])
+  stage             String // issued | in_shiphero | shipped | delivered | receiving | received | closed
+  issuedAt          DateTime?
+  shippedAt         DateTime?
+  tracking          String[]
+  deliveryDate      DateTime? // from email if present
+  etaAt             DateTime? // best estimate (§6)
+  etaSource         String? // email | pdf | carrier | lead_time_model
+  deliveredAt       DateTime?
+  receivedAt        DateTime?
+  shipheroId        String?
+  productionTaskUrl String?
+  pdfJson           Json?
+  pdfSource         Json? // added: {messageId, attachmentId, filename} of the PO PDF to parse
+  pdfAttempts       Int       @default(0) // added
+  pdfError          String? // added
+  lines             PoLine[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([orderNo, warehouseCode])
+}
+
+model PoLine {
+  id          String        @id @default(cuid())
+  poId        String
+  po          PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  lineKey     String // added: variantSku ?? productSku, so upserts are idempotent
+  productSku  String
+  variantSku  String?
+  qtyOrdered  Int? // from PDF
+  qtyShiphero Int? // from ShipHero PO
+  qtyReceived Int           @default(0)
+
+  @@unique([poId, lineKey])
+  @@index([productSku])
+}
+
+model Campaign {
+  gid        String    @id
+  storeId    String?
+  name       String
+  kind       String
+  launchAt   DateTime?
+  endAt      DateTime?
+  status     String?
+  isPreorder Boolean   @default(false)
+  isVinyl    Boolean   @default(false)
+  skus       String[]
+  permalink  String
+  syncedAt   DateTime
+}
+
+model CampaignProduct {
+  campaignGid String
+  productSku  String
+  source      String // parsed | ai | manual
+  confidence  Float?
+  confirmed   Boolean @default(false)
+
+  @@id([campaignGid, productSku])
+}
+
+model Event {
+  id         String   @id @default(cuid())
+  at         DateTime
+  kind       String // email_issued, email_shipped, pdf_parsed, sh_po_created…
+  productSku String?
+  poId       String?
+  data       Json
+  sourceUrl  String?
+  dedupeKey  String?  @unique // added: e.g. "gmail:<id>:<sku>" so re-runs don't duplicate
+
+  @@index([productSku, at])
+  @@index([poId, at])
+}
+
+model Issue {
+  id           String    @id @default(cuid())
+  ruleId       String // R01… , ING-* (ingest) or "ai"
+  severity     String // red | yellow | info
+  title        String
+  detail       String
+  productSku   String?
+  poId         String?
+  campaignGid  String?
+  evidence     Json
+  byAi         Boolean   @default(false)
+  status       String    @default("open") // open | snoozed | resolved | dismissed
+  snoozedUntil DateTime? // added
+  resolution   String?
+  fingerprint  String    @unique
+  firstSeen    DateTime  @default(now())
+  lastSeen     DateTime
+}
+
+model User {
+  id     String  @id @default(cuid())
+  email  String? @unique // optional so managers can be added before they sign in
+  name   String
+  stores Store[]
+}
+
+model SyncRun {
+  id         String    @id @default(cuid())
+  job        String
+  startedAt  DateTime
+  finishedAt DateTime?
+  ok         Boolean?
+  error      String?
+  stats      Json?
+  trigger    String? // added: cron | manual
+}
+
+// added: one row per Gmail message seen, for idempotency and audit
+model EmailMessage {
+  id          String    @id // Gmail message ID
+  threadId    String
+  subject     String
+  from        String?
+  receivedAt  DateTime
+  kind        String // issued | shipped | unknown
+  status      String // processed | skipped | unknown_format | error
+  skipReason  String? // unknown_store | store_disabled
+  parsedBy    String? // regex | regex+ai | ai
+  confidence  Float?
+  parsed      Json?
+  baseSku     String?
+  storeCode   String?
+  error       String?
+  attempts    Int       @default(0)
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([status])
+}
+
+// added: thresholds and lists editable in Settings
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}

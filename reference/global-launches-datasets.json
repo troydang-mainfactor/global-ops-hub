@@ -1,0 +1,102 @@
+{
+  "campaigns": {
+    "description": "Campaign cards on every artist E-Comm board due in the current window, open or recently completed, with their assignee.",
+    "source": {
+      "args": {
+        "due_on_after": "{{from}}",
+        "due_on_before": "{{to}}",
+        "is_subtask": false,
+        "limit": 100,
+        "opt_fields": "name,due_on,start_on,completed,notes,assignee.name,projects.name,custom_fields.name,custom_fields.display_value,permalink_url",
+        "projects_any": "1168440143254613,1203331426907642,1206867959806128,1207274924783773,1207348212558114,1207900820830179,1208503805194552,1208554748927217,1208720838976555,1208941114939092,1209793577608732,1209804928809094,1210347469319408,1212663579523462,1213950875389344,1214517266936620,1217957211734516",
+        "sort_ascending": true,
+        "sort_by": "due_date"
+      },
+      "connector": "Asana",
+      "kind": "call",
+      "rules": {
+        "from": {
+          "description": "Earliest due date",
+          "pattern": "^[0-9]{4}-[01][0-9]-[0-3][0-9]$"
+        },
+        "to": {
+          "description": "Latest due date",
+          "pattern": "^[0-9]{4}-[01][0-9]-[0-3][0-9]$"
+        }
+      },
+      "tool": "search_tasks"
+    },
+    "title": "Campaign cards (Asana)"
+  },
+  "qa_checks": {
+    "description": "Setup (pre), live (post) and takedown (end) checks from the latest scans, plus marketing approvals, with an owner for each.",
+    "schedule": "Replaced by each QA scan run",
+    "source": {
+      "format": "json",
+      "kind": "file",
+      "name": "qa_checks.json",
+      "url": "/_blob/60a3e82e393a8430e5bc9c5e28a521cb"
+    },
+    "staleAfterHours": 24,
+    "title": "Site scan results",
+    "updated": {
+      "at": "2026-11-20T08:50:00Z",
+      "by": "Claude"
+    }
+  },
+  "scan_acks": {
+    "description": "Checks someone marked as known on the page; each stops counting until its result changes.",
+    "source": {
+      "kind": "store",
+      "path": "data/scan/acks"
+    },
+    "title": "Acknowledged checks"
+  },
+  "scan_requests": {
+    "description": "Pre- and post-scans someone queued with a Run button; the scan run marks each done.",
+    "source": {
+      "kind": "store",
+      "path": "data/scan/requests"
+    },
+    "title": "Queued scans"
+  },
+  "scan_settings": {
+    "description": "Automatic or manual scanning: a default plus per-campaign overrides, set on the page by editors.",
+    "source": {
+      "kind": "store",
+      "path": "data/scan/settings"
+    },
+    "title": "Scan settings"
+  },
+  "status_notes": {
+    "description": "Short status summaries Claude wrote from each card\u2019s Asana comments and its Marketing and Email subtasks.",
+    "schedule": "Rewritten by each scan run",
+    "source": {
+      "format": "json",
+      "kind": "file",
+      "name": "status_notes.json",
+      "url": "/_blob/d9b7095789cce3b666b8a5a0df78710f"
+    },
+    "staleAfterHours": 24,
+    "title": "Campaign status notes",
+    "updated": {
+      "at": "2026-11-20T08:50:00Z",
+      "by": "Claude"
+    }
+  },
+  "store_managers": {
+    "description": "Your list of stores, store codes and the MF store manager for each.",
+    "fixed": true,
+    "source": {
+      "format": "csv",
+      "kind": "file",
+      "name": "store_managers.csv",
+      "url": "/_blob/231bd640ad3a921abbc3fa0b81e81732"
+    },
+    "title": "MF store managers",
+    "updated": {
+      "at": "2026-11-20T07:30:00Z",
+      "by": "Troy (pasted list)"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "_note": "Phase 0 seed. Store codes are the four prefixes seen in the sample PO emails; replace with Troy's real list (or paste the store managers list in Settings → Stores → Import). Warehouse ShipHero mapping is still to confirm.",
+  "manager": { "name": "Troy Dang", "email": "troy.dang@mainfactor.com" },
+  "stores": [
+    { "code": "STOK", "name": "STOK", "enabled": true },
+    { "code": "FALR", "name": "FALR", "enabled": true },
+    { "code": "MEGA", "name": "MEGA", "enabled": true },
+    { "code": "EVAN", "name": "EVAN", "enabled": true }
+  ],
+  "warehouses": [
+    { "emailCode": "MAINF MI", "name": "Mainfactor (MI)", "inShiphero": true },
+    { "emailCode": "BSI UK", "name": "UK warehouse", "inShiphero": true }
+  ]
+}
