@@ -43,7 +43,7 @@ export const JOBS: JobDef[] = [
     run: async () =>
       runShipheroSync({
         db,
-        clientFor: (a) => (tokenSet(a) ? createShipheroClient({ refreshToken: process.env[a.tokenRef]! }) : null),
+        clientFor: (a) => (tokenSet(a) ? createShipheroClient({ token: process.env[a.tokenRef]! }) : null),
       }) as never,
   },
 ];

@@ -55,13 +55,14 @@ Later, to read `globalinboundupdates@` directly: switch `GMAIL_MAILBOX` and the 
 
 ### ShipHero tokens (one per warehouse login)
 
-Each store uses the ShipHero account for its warehouse (Settings → ShipHero accounts). Start with Michigan; Philly works the same way.
+Each store uses the ShipHero account for its warehouse (Settings → ShipHero accounts). Start with Michigan; Philly works the same way. Put the token in `SHIPHERO_TOKEN_MICHIGAN`. Either kind works:
 
-1. Sign in to the **Michigan** ShipHero login. Open [app.shiphero.com/dashboard/users](https://app.shiphero.com/dashboard/users) → **+Add Third-Party Developer**. Once added, ShipHero shows a **Bearer Token** and a **Refresh Token**.
-2. Copy the **Refresh Token** into `SHIPHERO_TOKEN_MICHIGAN` on your host. The app swaps it for a short-lived access token itself (access tokens last 28 days).
-3. Settings → ShipHero accounts should show **token set** for Mainfactor Michigan.
+| Token | Lasts | How to get it |
+|---|---|---|
+| **Access token** (starts `eyJ`) | 28 days, then paste a new one. The app warns on Today a week before. | Copy from another script that already has one (e.g. its stored access token), or ShipHero's "Bearer Token" |
+| **Refresh token** (recommended) | Renews itself | ShipHero → [Users](https://app.shiphero.com/dashboard/users) → **+Add Third-Party Developer** → "Refresh Token". Or `POST https://public-api.shiphero.com/auth/token` with a ShipHero login's email and password (returns `refresh_token`; with MFA there's an extra one-time-code step). Source: [developer.shiphero.com/getting-started](https://developer.shiphero.com/getting-started/) |
 
-Alternative from ShipHero's docs: `POST https://public-api.shiphero.com/auth/token` with a dedicated API user's email and password returns a `refresh_token`. If MFA is on, ShipHero asks for an extra one-time-code step. Source: [developer.shiphero.com/getting-started](https://developer.shiphero.com/getting-started/).
+Settings → ShipHero accounts shows which kind is set and, for access tokens, the expiry date.
 
 ### Scheduling
 

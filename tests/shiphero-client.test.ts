@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createShipheroClient, throttleWaitMs } from "@/lib/shiphero/client";
+import { createShipheroClient, throttleWaitMs, tokenInfo } from "@/lib/shiphero/client";
 import { pickWarehouse, tagVariants, trailingOrderNo } from "@/lib/shiphero/sync";
 
 function fakeFetch(responses: Array<{ status?: number; json?: unknown }>) {
@@ -19,7 +19,7 @@ describe("ShipHero client", () => {
       { json: { data: { ok: 1 } } },
       { json: { data: { ok: 2 } } },
     ]);
-    const c = createShipheroClient({ refreshToken: "RT", fetch: f, sleep: async () => {} });
+    const c = createShipheroClient({ token: "RT", fetch: f, sleep: async () => {} });
     expect(await c.query("{a}")).toEqual({ ok: 1 });
     expect(await c.query("{b}")).toEqual({ ok: 2 });
     expect(calls.map((x) => x.url)).toEqual([
@@ -38,7 +38,7 @@ describe("ShipHero client", () => {
       { json: { errors: [{ code: 30, message: "There are not enough credits to perform the requested operation", time_remaining: "3 seconds" }] } },
       { json: { data: { ok: true } } },
     ]);
-    const c = createShipheroClient({ refreshToken: "RT", fetch: f, sleep: async (ms) => void waits.push(ms) });
+    const c = createShipheroClient({ token: "RT", fetch: f, sleep: async (ms) => void waits.push(ms) });
     expect(await c.query("{x}")).toEqual({ ok: true });
     expect(waits).toEqual([3500]);
   });
@@ -50,14 +50,14 @@ describe("ShipHero client", () => {
       { json: { access_token: "NEW", expires_in: 100000 } },
       { json: { data: { ok: 1 } } },
     ]);
-    expect(await createShipheroClient({ refreshToken: "RT", fetch: f }).query("{x}")).toEqual({ ok: 1 });
+    expect(await createShipheroClient({ token: "RT", fetch: f }).query("{x}")).toEqual({ ok: 1 });
     const bad = fakeFetch([{ status: 403 }]);
-    await expect(createShipheroClient({ refreshToken: "RT", fetch: bad.f }).query("{x}")).rejects.toThrow(/auth failed/);
+    await expect(createShipheroClient({ token: "RT", fetch: bad.f }).query("{x}")).rejects.toThrow(/auth failed/);
   });
 
   it("surfaces non-throttle GraphQL errors", async () => {
     const { f } = fakeFetch([{ json: { access_token: "AT", expires_in: 100000 } }, { json: { errors: [{ message: "Cannot query field" }] } }]);
-    await expect(createShipheroClient({ refreshToken: "RT", fetch: f }).query("{x}")).rejects.toThrow(/Cannot query field/);
+    await expect(createShipheroClient({ token: "RT", fetch: f }).query("{x}")).rejects.toThrow(/Cannot query field/);
   });
 
   it("reads time_remaining", () => {
@@ -82,5 +82,29 @@ describe("ShipHero helpers", () => {
   });
   it("sends case variants of pre-order tags", () => {
     expect(tagVariants(["pre-order"])).toEqual(["pre-order", "PRE-ORDER", "Pre-Order"]);
+  });
+});
+
+const jwt = (exp: number) => `eyJhbGciOiJSUzI1NiJ9.${Buffer.from(JSON.stringify({ exp })).toString("base64url")}.sig`;
+
+describe("pasted access tokens", () => {
+  const future = Math.floor(Date.now() / 1000) + 10 * 86400;
+  it("recognises access vs refresh tokens and reads expiry", () => {
+    expect(tokenInfo(jwt(future))).toEqual({ kind: "access", expiresAt: new Date(future * 1000) });
+    expect(tokenInfo(`Bearer ${jwt(future)}`).kind).toBe("access");
+    expect(tokenInfo("v1.MRrefreshopaque").kind).toBe("refresh");
+  });
+  it("uses an access token directly, without calling /auth/refresh", async () => {
+    const { f, calls } = fakeFetch([{ json: { data: { ok: 1 } } }]);
+    const c = createShipheroClient({ token: jwt(future), fetch: f });
+    expect(await c.query("{x}")).toEqual({ ok: 1 });
+    expect(calls.map((x) => x.url)).toEqual(["https://public-api.shiphero.com/graphql"]);
+    expect(calls[0].auth).toBe(`Bearer ${jwt(future)}`);
+    expect(c.accessTokenExpiresAt?.()).toEqual(new Date(future * 1000));
+  });
+  it("fails clearly when the access token has expired or is rejected", async () => {
+    const past = Math.floor(Date.now() / 1000) - 60;
+    await expect(createShipheroClient({ token: jwt(past), fetch: fakeFetch([]).f }).query("{x}")).rejects.toThrow(/expired on/);
+    await expect(createShipheroClient({ token: jwt(future), fetch: fakeFetch([{ status: 401 }]).f }).query("{x}")).rejects.toThrow(/rejected the access token/);
   });
 });

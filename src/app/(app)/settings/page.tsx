@@ -5,6 +5,7 @@ import { gmailConfigured, gmailLabelsEnabled } from "@/lib/gmail/client";
 import { aiConfigured, aiModel } from "@/lib/ai/client";
 import { Button, Card, Pill, fmtDateTime } from "@/components/ui";
 import { accountForStore, tokenSet } from "@/lib/shiphero/accounts";
+import { tokenInfo } from "@/lib/shiphero/client";
 import type { Prisma, ShipheroAccount } from "@prisma/client";
 import {
   assignPrefix, deleteShipheroAccount, deleteStore, deleteWarehouse, enableManagerStores, importStores, runJobNow,
@@ -170,7 +171,7 @@ export default async function SettingsPage() {
                 <select name="type" defaultValue={a.type}><option value="direct">direct</option><option value="3pl">3pl</option></select>
                 <input name="tokenRef" defaultValue={a.tokenRef} className="w-52 font-mono" />
                 <input name="customerAccountId" defaultValue={a.customerAccountId ?? ""} placeholder="customer_account_id" className="w-40 font-mono" />
-                {tokenSet(a) ? <Pill tone="green">token set</Pill> : <Pill tone="gray">token not set</Pill>}
+                <TokenPill tokenRef={a.tokenRef} />
                 <Button>Save</Button>
               </form>
               <form action={deleteShipheroAccount}>
@@ -290,4 +291,15 @@ function StoreRowView({ s, accounts }: { s: StoreWithManager; accounts: Shiphero
       </form>
     </div>
   );
+}
+
+function TokenPill({ tokenRef }: { tokenRef: string }) {
+  const raw = process.env[tokenRef];
+  if (!raw) return <Pill tone="gray">token not set</Pill>;
+  const info = tokenInfo(raw);
+  if (info.kind === "refresh") return <Pill tone="green">refresh token set</Pill>;
+  if (!info.expiresAt) return <Pill tone="yellow">access token (expiry unknown)</Pill>;
+  const days = Math.floor((info.expiresAt.getTime() - Date.now()) / 86400000);
+  const when = info.expiresAt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return <Pill tone={days < 0 ? "red" : days < 7 ? "yellow" : "green"}>{days < 0 ? `access token expired ${when}` : `access token · expires ${when}`}</Pill>;
 }

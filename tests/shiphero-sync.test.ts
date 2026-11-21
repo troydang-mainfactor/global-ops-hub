@@ -152,6 +152,19 @@ describe.skipIf(!hasTestDb)("ShipHero sync (DB)", () => {
     expect(sh.queries.find((q) => q.includes("warehouse_products("))).not.toContain("updated_from");
   });
 
+  it("warns a week before a pasted access token expires, and clears when replaced", async () => {
+    const sh = fakeShiphero({});
+    sh.accessTokenExpiresAt = () => new Date(NOW.getTime() + 3 * 86400000);
+    await run(sh);
+    expect(await db.issue.findUnique({ where: { fingerprint: "SH-TOKEN:mi" } })).toMatchObject({ severity: "yellow", status: "open" });
+    sh.accessTokenExpiresAt = () => new Date(NOW.getTime() - 1000);
+    await run(sh);
+    expect(await db.issue.findUnique({ where: { fingerprint: "SH-TOKEN:mi" } })).toMatchObject({ severity: "red" });
+    sh.accessTokenExpiresAt = () => new Date(NOW.getTime() + 28 * 86400000);
+    await run(sh);
+    expect(await db.issue.findUnique({ where: { fingerprint: "SH-TOKEN:mi" } })).toMatchObject({ status: "resolved" });
+  });
+
   it("raises an issue when it can't tell which warehouse is the account's", async () => {
     await run(fakeShiphero({ warehouses: [{ id: "1", identifier: "East", active: true }, { id: "2", identifier: "West", active: true }] }));
     expect(await db.issue.findUnique({ where: { fingerprint: "SH-WAREHOUSE:mi" } })).toMatchObject({ severity: "yellow" });

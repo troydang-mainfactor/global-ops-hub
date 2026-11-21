@@ -73,6 +73,7 @@ export async function runShipheroSync(deps: ShSyncDeps): Promise<AccountStats[]>
       continue;
     }
     try {
+      await checkTokenExpiry(ctx, client, account);
       const warehouseId = await syncWarehouse(ctx, client, account);
       stats.warehouseId = warehouseId;
       await syncPurchaseOrders(ctx, client, account, stats);
@@ -93,6 +94,25 @@ export async function runShipheroSync(deps: ShSyncDeps): Promise<AccountStats[]>
 const timeLeft = (ctx: Ctx) => Date.now() < ctx.deadline;
 const storesOf = (ctx: Ctx, account: ShipheroAccount, accounts = [account]) =>
   ctx.stores.filter((s) => accountForStore(s, accounts)?.id === account.id);
+
+// ---------------------------------------------------------------- 0. token expiry
+
+/** A pasted access token can't renew itself (28 days): warn a week ahead. */
+async function checkTokenExpiry(ctx: Ctx, client: ShipheroClient, account: ShipheroAccount) {
+  const exp = client.accessTokenExpiresAt?.() ?? null;
+  const fingerprint = `SH-TOKEN:${account.id}`;
+  if (!exp || exp.getTime() - ctx.now.getTime() > 7 * 86400000) {
+    await ctx.db.issue.updateMany({ where: { fingerprint, status: { in: ["open", "snoozed"] } }, data: { status: "resolved", resolution: "Token replaced" } });
+    return;
+  }
+  const expired = exp <= ctx.now;
+  await raiseIssue(ctx.db, {
+    ruleId: "SH-TOKEN", severity: expired ? "red" : "yellow",
+    title: `ShipHero ${account.name}: access token ${expired ? "expired" : "expires"} ${exp.toISOString().slice(0, 10)}`,
+    detail: `Paste a fresh token into ${account.tokenRef}, or switch to a refresh token so it renews itself.`,
+    fingerprint, evidence: { account: account.name, tokenRef: account.tokenRef, expiresAt: exp.toISOString() },
+  }, ctx.now);
+}
 
 // ---------------------------------------------------------------- 1. warehouse
 
