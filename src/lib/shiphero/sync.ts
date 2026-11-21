@@ -246,6 +246,15 @@ async function matchPurchaseOrders(ctx: Ctx, account: ShipheroAccount, stats: Ac
     const storeWh = po.storeId ? whOf.get(po.storeId) : null;
     const inWh = storeWh ? all.filter((c) => c.warehouseId === storeWh) : [];
     const cands = inWh.length ? inWh : all;
+    // Global often splits one PO into a ShipHero PO per SKU ("FALR… - PO094108" ×6).
+    // Those cover different SKUs, so combine them. Overlapping SKUs = real duplicates: don't guess.
+    const merged = cands.length > 1 ? mergeSplitPos(cands) : null;
+    if (merged) {
+      await applyShipheroPo(ctx, po, merged, stats);
+      await db.issue.updateMany({ where: { fingerprint: `SH-PO-MULTI:${po.id}`, status: "open" }, data: { status: "resolved", resolution: "Combined: ShipHero POs cover different SKUs" } });
+      stats.matched++;
+      continue;
+    }
     if (cands.length > 1) {
       stats.ambiguous++;
       await raiseIssue(db, {
@@ -264,7 +273,33 @@ async function matchPurchaseOrders(ctx: Ctx, account: ShipheroAccount, stats: Ac
   }
 }
 
-async function applyShipheroPo(ctx: Ctx, po: PurchaseOrder, sh: { id: string; poNumber: string; dateClosed: Date | null; fulfillmentStatus: string | null; lines: Prisma.JsonValue }, stats: AccountStats) {
+type ShPoRow = { id: string; poNumber: string; dateClosed: Date | null; fulfillmentStatus: string | null; lines: Prisma.JsonValue };
+
+/** Combines ShipHero POs that split one order by SKU. Returns null if any SKU appears in more than one. */
+export function mergeSplitPos(cands: ShPoRow[]): ShPoRow | null {
+  const seen = new Set<string>();
+  const items: ShLine[] = [];
+  for (const c of cands) {
+    const raw = c.lines as unknown as { items?: ShLine[] };
+    const skus = new Set((raw.items ?? []).filter((l) => l.sku).map((l) => normalizeSku(l.sku)));
+    for (const s of skus) {
+      if (seen.has(s)) return null;
+      seen.add(s);
+    }
+    items.push(...(raw.items ?? []));
+  }
+  const firstLegacy = (cands[0].lines as unknown as { legacyId?: number | null }).legacyId ?? null;
+  const allClosed = cands.every((c) => c.dateClosed);
+  return {
+    id: cands.map((c) => c.id).join(","),
+    poNumber: cands.map((c) => c.poNumber).join(", "),
+    dateClosed: allClosed ? new Date(Math.max(...cands.map((c) => c.dateClosed!.getTime()))) : null,
+    fulfillmentStatus: [...new Set(cands.map((c) => c.fulfillmentStatus).filter(Boolean))].join(", ") || null,
+    lines: { legacyId: firstLegacy, items } as unknown as Prisma.JsonValue,
+  };
+}
+
+async function applyShipheroPo(ctx: Ctx, po: PurchaseOrder, sh: ShPoRow, stats: AccountStats) {
   const { db } = ctx;
   const raw = sh.lines as unknown as { legacyId?: number | null; items: ShLine[] };
   const agg = new Map<string, { productSku: string; variantSku: string | null; qty: number; rec: number }>();

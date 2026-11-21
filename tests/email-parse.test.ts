@@ -91,6 +91,15 @@ describe("Shipped from vendor emails", () => {
     expect(d.deliveryDate).toBe("2026-12-05");
   });
 
+  it("reads only the warehouse line, not the signature below it", () => {
+    const d = ok(f.shippedWithSignature);
+    expect(d.bodyWarehouseCode).toBe("MAINF MI");
+    expect(d.warehouseCode).toBe("MAINF MI");
+    expect(d.deliveryDate).toBeNull();
+    expect(d.tracking).toEqual(["1Z999AA10123456722"]);
+    expect(d.designName).toBe("Voices in My Head/Bad Guy");
+  });
+
   it("flags missing tracking", () => {
     const d = ok({ ...f.shippedFalr, body: f.shippedFalr.body.replace(/1Z\S+/, "[no value]") });
     expect(d.tracking).toEqual([]);

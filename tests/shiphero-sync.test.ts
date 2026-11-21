@@ -102,10 +102,25 @@ describe.skipIf(!hasTestDb)("ShipHero sync (DB)", () => {
     expect((await db.purchaseOrder.findUniqueOrThrow({ where: { id: po.id } })).stage).toBe("shipped");
   });
 
+  it("combines ShipHero POs that split one order by SKU", async () => {
+    const stats = await run(fakeShiphero({ pos: [
+      { id: "A", po_number: "STOKNR104581OT - PO094330", lines: [["STOKNR104581OT_MD", 120, 120]] },
+      { id: "B", po_number: "STOKNR104582BK - PO094330", lines: [["STOKNR104582BK_LG", 50, 0]] },
+    ] }));
+    expect(stats[0]).toMatchObject({ matched: 1, ambiguous: 0 });
+    const p = await db.purchaseOrder.findUniqueOrThrow({ where: { id: po.id }, include: { lines: { orderBy: { lineKey: "asc" } } } });
+    expect(p.stage).toBe("receiving");
+    expect(p.shipheroId).toBe("A,B");
+    expect(p.lines.map((l) => [l.lineKey, l.qtyShiphero, l.qtyReceived])).toEqual([
+      ["STOKNR104581OT_MD", 120, 120],
+      ["STOKNR104582BK_LG", 50, 0],
+    ]);
+  });
+
   it("raises an issue instead of guessing when two ShipHero POs match", async () => {
     const stats = await run(fakeShiphero({ pos: [
-      { id: "A", po_number: "STOK - PO094330", lines: [] },
-      { id: "B", po_number: "STOK REORDER - PO094330", lines: [] },
+      { id: "A", po_number: "STOK - PO094330", lines: [["STOKNR104581OT_MD", 10, 0]] },
+      { id: "B", po_number: "STOK REORDER - PO094330", lines: [["STOKNR104581OT_MD", 20, 0]] }, // same SKU twice
     ] }));
     expect(stats[0].ambiguous).toBe(1);
     expect(await db.issue.findUnique({ where: { fingerprint: `SH-PO-MULTI:${po.id}` } })).toMatchObject({ severity: "yellow" });

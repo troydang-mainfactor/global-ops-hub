@@ -105,3 +105,26 @@ export const unknownFormat = {
 };
 
 export const ASANA_TASK_URL = ASANA;
+
+/** Real-world shape: signature and disclaimer after the Warehouse line, Asana link inline. */
+export const shippedWithSignature = {
+  subject: "PO094108 /FALRNR103454OT / MAINF MI",
+  body: `FALRNR103454OT has shipped from the vendor. Please see tracking below and the Asana Task Link for the PO & packing list documents.
+
+FALRNR103454OT
+Voices in My Head/Bad Guy
+Tracking:
+1Z999AA10123456722
+Delivery Date:
+[no value]
+Warehouse:
+MAINF MI
+Thanks
+Jonathan Stanley
+Senior Operations Manager, E-commerce
+Email: jonathan.stanley@globalmerchservices.com
+[Asana Logo]Sent from Asana: ${ASANA}.
+________________________________
+This e-mail is confidential. It may also be legally privileged.`,
+  receivedAt: new Date("2026-11-20T12:00:00Z"),
+};

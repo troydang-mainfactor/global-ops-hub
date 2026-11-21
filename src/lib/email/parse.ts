@@ -84,6 +84,24 @@ export function splitTracking(raw: string | null): string[] {
   return [...new Set(out)];
 }
 
+/**
+ * Single-value fields (Delivery Date, Warehouse): the value on the heading line, or the first
+ * non-empty line after it. Never reads further, so a signature below can't leak in.
+ */
+function lineAfter(ls: string[], heading: string, stops: string[]): string | null {
+  const i = ls.findIndex((l) => new RegExp(`^${heading}\\s*:`, "i").test(l));
+  if (i === -1) return null;
+  const sameLine = ls[i].replace(new RegExp(`^${heading}\\s*:\\s*`, "i"), "").trim();
+  if (sameLine) return sameLine;
+  for (let j = i + 1; j < ls.length; j++) {
+    const l = ls[j];
+    if (!l) continue;
+    if (stops.some((s) => new RegExp(`^${s}\\s*:`, "i").test(l))) return null;
+    return l;
+  }
+  return null;
+}
+
 /** Value on the line(s) after a heading line like "Tracking:" up to the next heading. */
 function blockAfter(ls: string[], heading: string, stops: string[]): string | null {
   const i = ls.findIndex((l) => new RegExp(`^${heading}\\s*:`, "i").test(l));
@@ -148,8 +166,8 @@ function parseShipped(subjectMatch: RegExpMatchArray, body: string, ref: Date): 
   }
 
   const trackingRaw = blockAfter(ls, "Tracking", ["Delivery Date", "Warehouse"]);
-  const deliveryRaw = blockAfter(ls, "Delivery Date", ["Warehouse", "Tracking"]);
-  const bodyWarehouse = blockAfter(ls, "Warehouse", ["Tracking", "Delivery Date"]);
+  const deliveryRaw = lineAfter(ls, "Delivery Date", ["Warehouse", "Tracking"]);
+  const bodyWarehouse = lineAfter(ls, "Warehouse", ["Tracking", "Delivery Date"]);
   const tracking = splitTracking(trackingRaw);
   const deliveryDate = isoDate(parseLooseDate(deliveryRaw, ref));
   const productionTaskUrl = asanaLink(body);
