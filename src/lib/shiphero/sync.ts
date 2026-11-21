@@ -26,7 +26,9 @@ export interface ShSyncDeps {
 export interface AccountStats {
   account: string;
   skipped?: string;
-  warehouseId?: string | null;
+  warehouses?: number; // warehouses in the login
+  storesMatched?: number; // stores whose ShipHero warehouse was found (by profile)
+  storesUnmatched?: string[]; // enabled stores with no matching profile
   poPages: number;
   poFetched: number;
   poPassComplete: boolean;
@@ -74,11 +76,17 @@ export async function runShipheroSync(deps: ShSyncDeps): Promise<AccountStats[]>
     }
     try {
       await checkTokenExpiry(ctx, client, account);
-      const warehouseId = await syncWarehouse(ctx, client, account);
-      stats.warehouseId = warehouseId;
+      await syncWarehouses(ctx, client, account, stats);
       await syncPurchaseOrders(ctx, client, account, stats);
       await matchPurchaseOrders(ctx, account, stats);
-      if (warehouseId) await syncInventory(ctx, client, account, warehouseId, stats);
+      // Inventory per enabled store's warehouse (each store has its own warehouse/profile).
+      const whIds = [...new Set(storesOf(ctx, account).filter((st) => st.enabled && st.shipheroWarehouseId).map((st) => st.shipheroWarehouseId!))];
+      stats.inventoryPassComplete = whIds.length > 0;
+      for (const whId of whIds) {
+        if (!timeLeft(ctx)) { stats.inventoryPassComplete = false; break; }
+        const done = await syncInventory(ctx, client, account, whId, stats);
+        if (!done) stats.inventoryPassComplete = false;
+      }
       await syncPreorderTags(ctx, client, account, stats);
     } catch (e) {
       stats.error = e instanceof Error ? e.message : String(e);
@@ -114,36 +122,66 @@ async function checkTokenExpiry(ctx: Ctx, client: ShipheroClient, account: Shiph
   }, ctx.now);
 }
 
-// ---------------------------------------------------------------- 1. warehouse
+// ---------------------------------------------------------------- 1. warehouses (one per store, by profile)
 
-export function pickWarehouse(
-  whs: { id: string; identifier: string; active: boolean | null }[],
-  warehouseName: string | null,
-): { id: string; identifier: string } | null {
+const norm = (v: string | null | undefined) => (v ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/**
+ * The ShipHero warehouse for a store. In a login with one warehouse per store, warehouses are told
+ * apart by `profile`, which matches the store name (or Store.shipheroProfile when set).
+ * A login with a single active warehouse serves every store.
+ */
+export function warehouseForStore(
+  store: { name: string; code: string | null; shipheroProfile: string | null },
+  whs: Q.ShWarehouse[],
+): Q.ShWarehouse | null {
   const active = whs.filter((w) => w.active !== false);
   if (active.length === 1) return active[0];
-  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const want = norm(warehouseName ?? "");
-  return active.find((w) => norm(w.identifier) === want) ?? active.find((w) => want && (norm(w.identifier).includes(want) || want.includes(norm(w.identifier)))) ?? null;
+  const wants = store.shipheroProfile ? [norm(store.shipheroProfile)] : [norm(store.name), norm(store.code)].filter(Boolean);
+  const exact = active.filter((w) => wants.includes(norm(w.profile)));
+  if (exact.length === 1) return exact[0];
+  if (exact.length > 1 || store.shipheroProfile) return null;
+  const loose = active.filter((w) => {
+    const p = norm(w.profile);
+    return p.length >= 4 && norm(store.name).length >= 4 && (p.includes(norm(store.name)) || norm(store.name).includes(p));
+  });
+  return loose.length === 1 ? loose[0] : null;
 }
 
-async function syncWarehouse(ctx: Ctx, client: ShipheroClient, account: ShipheroAccount): Promise<string | null> {
+async function syncWarehouses(ctx: Ctx, client: ShipheroClient, account: ShipheroAccount, stats: AccountStats) {
+  const { db } = ctx;
   const r = await client.query<Q.AccountData>(Q.accountWarehouses());
-  const wh = pickWarehouse(r.account.data.warehouses ?? [], account.warehouseName);
-  if (!wh) {
-    await raiseIssue(ctx.db, {
-      ruleId: "SH-WAREHOUSE", severity: "yellow",
-      title: `ShipHero account "${account.name}": can't tell which warehouse is ${account.warehouseName ?? "its warehouse"}`,
-      detail: `Warehouses in this login: ${(r.account.data.warehouses ?? []).map((w) => w.identifier).join(", ") || "none"}. Rename the account's warehouse in Settings to match one of these.`,
-      fingerprint: `SH-WAREHOUSE:${account.id}`,
-      evidence: { account: account.name, warehouses: (r.account.data.warehouses ?? []).map((w) => w.identifier) },
-    }, ctx.now);
-    return null;
+  const whs = r.account.data.warehouses ?? [];
+  stats.warehouses = whs.length;
+  const profiles = [...new Set(whs.filter((w) => w.active !== false).map((w) => w.profile).filter(Boolean) as string[])].sort();
+  await setState(db, `sh:wh:${account.id}`, { profiles, count: whs.length });
+  await db.issue.updateMany({ where: { fingerprint: `SH-WAREHOUSE:${account.id}`, status: "open" }, data: { status: "resolved", resolution: "Warehouses now matched per store by profile" } });
+
+  let matched = 0;
+  const unmatched: string[] = [];
+  for (const store of storesOf(ctx, account)) {
+    const wh = warehouseForStore(store, whs);
+    if ((wh?.id ?? null) !== store.shipheroWarehouseId) {
+      await db.store.update({ where: { id: store.id }, data: { shipheroWarehouseId: wh?.id ?? null } });
+      store.shipheroWarehouseId = wh?.id ?? null; // keep ctx.stores current for later steps
+    }
+    const fingerprint = `SH-PROFILE:${store.id}`;
+    if (wh) {
+      matched++;
+      await db.issue.updateMany({ where: { fingerprint, status: "open" }, data: { status: "resolved", resolution: `Matched ShipHero profile ${wh.profile ?? wh.identifier}` } });
+    } else if (store.enabled) {
+      unmatched.push(store.name);
+      await raiseIssue(db, {
+        ruleId: "SH-PROFILE", severity: "yellow",
+        title: `${store.name}: no ShipHero profile matches in ${account.name}`,
+        detail: `Set the store's ShipHero profile in Settings → Stores to the exact profile name used in ShipHero${store.shipheroProfile ? ` ("${store.shipheroProfile}" wasn't found)` : ""}.`,
+        fingerprint,
+        evidence: { store: store.name, account: account.name, profiles: profiles.slice(0, 100) },
+      }, ctx.now);
+    }
   }
-  const ids = storesOf(ctx, account).filter((s) => s.shipheroWarehouseId !== wh.id).map((s) => s.id);
-  if (ids.length) await ctx.db.store.updateMany({ where: { id: { in: ids } }, data: { shipheroWarehouseId: wh.id } });
-  await setState(ctx.db, `sh:wh:${account.id}`, { id: wh.id, identifier: wh.identifier });
-  return wh.id;
+  stats.storesMatched = matched;
+  stats.storesUnmatched = unmatched;
 }
 
 // ---------------------------------------------------------------- 2. purchase orders
@@ -201,8 +239,13 @@ async function matchPurchaseOrders(ctx: Ctx, account: ShipheroAccount, stats: Ac
     if (no) byNo.set(no, [...(byNo.get(no) ?? []), p]);
   }
   const locals = await db.purchaseOrder.findMany({ where: { storeId: { in: storeIds }, stage: { not: "closed" } } });
+  const whOf = new Map(ctx.stores.map((st) => [st.id, st.shipheroWarehouseId]));
   for (const po of locals) {
-    const cands = byNo.get(po.orderNo) ?? [];
+    const all = byNo.get(po.orderNo) ?? [];
+    // Prefer ShipHero POs in the store's own warehouse (one warehouse per store).
+    const storeWh = po.storeId ? whOf.get(po.storeId) : null;
+    const inWh = storeWh ? all.filter((c) => c.warehouseId === storeWh) : [];
+    const cands = inWh.length ? inWh : all;
     if (cands.length > 1) {
       stats.ambiguous++;
       await raiseIssue(db, {
@@ -281,8 +324,9 @@ async function applyShipheroPo(ctx: Ctx, po: PurchaseOrder, sh: { id: string; po
 
 // ---------------------------------------------------------------- 4. inventory
 
-async function syncInventory(ctx: Ctx, client: ShipheroClient, account: ShipheroAccount, warehouseId: string, stats: AccountStats) {
-  const key = `sh:wp:${account.id}`;
+/** Returns true when this warehouse's pass finished (false = stopped at the time budget). */
+async function syncInventory(ctx: Ctx, client: ShipheroClient, account: ShipheroAccount, warehouseId: string, stats: AccountStats): Promise<boolean> {
+  const key = `sh:wp:${account.id}:${warehouseId}`;
   const st = (await getState(ctx.db, key)) ?? { updatedFrom: null, cursor: null, passStartedAt: null };
   const passStartedAt = st.passStartedAt ?? ctx.now.toISOString();
   let cursor = st.cursor;
@@ -309,12 +353,12 @@ async function syncInventory(ctx: Ctx, client: ShipheroClient, account: Shiphero
     }
     cursor = conn.pageInfo.hasNextPage ? conn.pageInfo.endCursor : null;
     if (!cursor) {
-      stats.inventoryPassComplete = true;
       await setState(ctx.db, key, { updatedFrom: new Date(new Date(passStartedAt).getTime() - 3600000).toISOString(), cursor: null, passStartedAt: null });
-      return;
+      return true;
     }
   }
   await setState(ctx.db, key, { updatedFrom: st.updatedFrom, cursor, passStartedAt });
+  return false;
 }
 
 // ---------------------------------------------------------------- 5. pre-order tags

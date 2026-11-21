@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createShipheroClient, throttleWaitMs, tokenInfo } from "@/lib/shiphero/client";
-import { pickWarehouse, tagVariants, trailingOrderNo } from "@/lib/shiphero/sync";
+import { tagVariants, trailingOrderNo, warehouseForStore } from "@/lib/shiphero/sync";
 
 function fakeFetch(responses: Array<{ status?: number; json?: unknown }>) {
   const calls: { url: string; body: string; auth: string | null }[] = [];
@@ -74,11 +74,22 @@ describe("ShipHero helpers", () => {
     expect(trailingOrderNo("STOK - PO094330A")).toBeNull();
     expect(trailingOrderNo("XPO094330")).toBeNull();
   });
-  it("picks the account's warehouse", () => {
-    expect(pickWarehouse([{ id: "1", identifier: "Primary", active: true }], "Mainfactor Michigan")?.id).toBe("1");
-    const two = [{ id: "1", identifier: "Mainfactor Michigan", active: true }, { id: "2", identifier: "Returns", active: true }];
-    expect(pickWarehouse(two, "mainfactor michigan")?.id).toBe("1");
-    expect(pickWarehouse(two, "Philly")).toBeNull();
+  it("finds each store's warehouse by profile", () => {
+    const whs = [
+      { id: "1", identifier: "Primary", profile: "Megadeth", active: true },
+      { id: "2", identifier: "Primary", profile: "Falling In Reverse", active: true },
+      { id: "3", identifier: "Primary", profile: "BINI Official", active: true },
+      { id: "4", identifier: "Primary", profile: "Old Store", active: false },
+    ];
+    const st = (name: string, code: string | null = null, shipheroProfile: string | null = null) => ({ name, code, shipheroProfile });
+    expect(warehouseForStore(st("Megadeth", "MEG"), whs)?.id).toBe("1");
+    expect(warehouseForStore(st("falling in reverse"), whs)?.id).toBe("2");
+    expect(warehouseForStore(st("BINI", "BINI"), whs)?.id).toBe("3"); // loose: profile contains store name
+    expect(warehouseForStore(st("Flat Black"), whs)).toBeNull();
+    expect(warehouseForStore(st("Anything", null, "Megadeth"), whs)?.id).toBe("1"); // override
+    expect(warehouseForStore(st("Megadeth", null, "Typo"), whs)).toBeNull(); // override must match exactly
+    expect(warehouseForStore(st("Old Store"), whs)).toBeNull(); // inactive ignored
+    expect(warehouseForStore(st("Whatever"), [{ id: "9", identifier: "Primary", profile: null, active: true }])?.id).toBe("9"); // single warehouse
   });
   it("sends case variants of pre-order tags", () => {
     expect(tagVariants(["pre-order"])).toEqual(["pre-order", "PRE-ORDER", "Pre-Order"]);

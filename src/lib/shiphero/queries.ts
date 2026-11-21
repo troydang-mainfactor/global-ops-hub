@@ -16,9 +16,10 @@ export interface Conn<T> { pageInfo: PageInfo; edges: { node: T }[] }
 export interface Result<T> { request_id?: string; complexity?: number; data: T }
 
 export const accountWarehouses = () => `query {
-  account { request_id complexity data { id is_3pl warehouses { id legacy_id identifier active } } }
+  account { request_id complexity data { id is_3pl warehouses { id legacy_id identifier profile active } } }
 }`;
-export interface AccountData { account: Result<{ id: string; is_3pl: boolean | null; warehouses: { id: string; identifier: string; active: boolean | null }[] }> }
+export interface ShWarehouse { id: string; identifier: string; profile: string | null; active: boolean | null }
+export interface AccountData { account: Result<{ id: string; is_3pl: boolean | null; warehouses: ShWarehouse[] }> }
 
 export const purchaseOrders = (updatedFrom: string, cursor: string | null) => `query {
   purchase_orders(updated_from: ${q(updatedFrom)}) {

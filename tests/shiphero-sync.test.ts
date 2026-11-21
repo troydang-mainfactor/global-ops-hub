@@ -6,7 +6,7 @@ import { hasTestDb, resetDb, testDb } from "./helpers/db";
 const NOW = new Date("2026-11-21T12:00:00Z");
 
 interface FakeData {
-  warehouses?: { id: string; identifier: string; active: boolean }[];
+  warehouses?: { id: string; identifier: string; profile: string | null; active: boolean }[];
   pos?: Array<{ id: string; po_number: string; status?: string; date_closed?: string | null; lines: [string, number, number][] }>;
   wps?: Array<{ sku: string; on_hand: number; available: number; allocated: number; backorder: number; name?: string }>;
   tagged?: Array<{ sku: string; tags: string[] }>;
@@ -19,7 +19,7 @@ function fakeShiphero(d: FakeData) {
     queries,
     async query<T>(q: string) {
       queries.push(q);
-      if (q.includes("account {")) return { account: { data: { id: "A", is_3pl: false, warehouses: d.warehouses ?? [{ id: "WH1", identifier: "Primary", active: true }] } } } as T;
+      if (q.includes("account {")) return { account: { data: { id: "A", is_3pl: false, warehouses: d.warehouses ?? [{ id: "WH1", identifier: "Primary", profile: "Sleep Token", active: true }] } } } as T;
       if (q.includes("purchase_orders(")) {
         return { purchase_orders: page((d.pos ?? []).map((p) => ({
           id: p.id, legacy_id: 123, po_number: p.po_number, warehouse_id: "WH1", fulfillment_status: p.status ?? "pending", po_date: null, date_closed: p.date_closed ?? null,
@@ -69,7 +69,7 @@ describe.skipIf(!hasTestDb)("ShipHero sync (DB)", () => {
     ] });
     const stats = await run(sh);
     expect(stats.find((s) => s.account === "Mainfactor Philly")?.skipped).toMatch(/token not set/);
-    expect(stats[0]).toMatchObject({ matched: 1, ambiguous: 0, warehouseId: "WH1", poPassComplete: true });
+    expect(stats[0]).toMatchObject({ matched: 1, ambiguous: 0, storesMatched: 1, poPassComplete: true });
 
     let p = await db.purchaseOrder.findUniqueOrThrow({ where: { id: po.id }, include: { lines: { orderBy: { lineKey: "asc" } } } });
     expect(p).toMatchObject({ stage: "in_shiphero", shipheroId: "SHPO1" });
@@ -148,7 +148,7 @@ describe.skipIf(!hasTestDb)("ShipHero sync (DB)", () => {
     await run(sh2);
     const since = new Date(NOW.getTime() - 3600000).toISOString();
     expect(sh2.queries.find((q) => q.includes("purchase_orders("))).toContain(`updated_from: "${since}"`);
-    expect(sh2.queries.find((q) => q.includes("warehouse_products("))).toContain(`updated_from: "${since}"`);
+    expect(sh2.queries.find((q) => q.includes("warehouse_products("))).toContain(`updated_from: "${since}"`); // per-warehouse cursor
     expect(sh.queries.find((q) => q.includes("warehouse_products("))).not.toContain("updated_from");
   });
 
@@ -165,8 +165,43 @@ describe.skipIf(!hasTestDb)("ShipHero sync (DB)", () => {
     expect(await db.issue.findUnique({ where: { fingerprint: "SH-TOKEN:mi" } })).toMatchObject({ status: "resolved" });
   });
 
-  it("raises an issue when it can't tell which warehouse is the account's", async () => {
-    await run(fakeShiphero({ warehouses: [{ id: "1", identifier: "East", active: true }, { id: "2", identifier: "West", active: true }] }));
-    expect(await db.issue.findUnique({ where: { fingerprint: "SH-WAREHOUSE:mi" } })).toMatchObject({ severity: "yellow" });
+  it("matches each store to its own warehouse by profile and syncs inventory per warehouse", async () => {
+    const st2 = await db.store.create({ data: { name: "Megadeth", code: "MEG", skuPrefixes: ["MEGA"], enabled: true, warehouseName: "Mainfactor Michigan" } });
+    await db.store.create({ data: { name: "Flat Black", code: "FLA", enabled: true, warehouseName: "Mainfactor Michigan" } });
+    const sh = fakeShiphero({ warehouses: [
+      { id: "W-SLE", identifier: "Primary", profile: "Sleep Token", active: true },
+      { id: "W-MEG", identifier: "Primary", profile: "Megadeth", active: true },
+      { id: "W-X", identifier: "Primary", profile: "Someone Else", active: true },
+    ] });
+    const stats = await run(sh);
+    expect(stats[0]).toMatchObject({ warehouses: 3, storesMatched: 2, storesUnmatched: ["Flat Black"] });
+    expect((await db.store.findUniqueOrThrow({ where: { id: st2.id } })).shipheroWarehouseId).toBe("W-MEG");
+    const fla = await db.store.findUniqueOrThrow({ where: { code: "FLA" } });
+    expect(await db.issue.findUnique({ where: { fingerprint: `SH-PROFILE:${fla.id}` } })).toMatchObject({ severity: "yellow" });
+    const wpQueries = sh.queries.filter((q) => q.includes("warehouse_products("));
+    expect(wpQueries.some((q) => q.includes('"W-SLE"'))).toBe(true);
+    expect(wpQueries.some((q) => q.includes('"W-MEG"'))).toBe(true);
+    expect(wpQueries.some((q) => q.includes('"W-X"'))).toBe(false);
+
+    // Setting the profile name fixes it on the next sync.
+    await db.store.update({ where: { id: fla.id }, data: { shipheroProfile: "Someone Else" } });
+    await run(sh);
+    expect((await db.store.findUniqueOrThrow({ where: { id: fla.id } })).shipheroWarehouseId).toBe("W-X");
+    expect(await db.issue.findUnique({ where: { fingerprint: `SH-PROFILE:${fla.id}` } })).toMatchObject({ status: "resolved" });
+  });
+
+  it("prefers the ShipHero PO in the store's own warehouse", async () => {
+    const sh = fakeShiphero({
+      warehouses: [{ id: "W-SLE", identifier: "Primary", profile: "Sleep Token", active: true }, { id: "W-OTHER", identifier: "Primary", profile: "Other", active: true }],
+      pos: [],
+    });
+    await run(sh);
+    await db.shipheroPo.createMany({ data: [
+      { id: "A", accountId: "mi", poNumber: "OTHR - PO094330", warehouseId: "W-OTHER", lines: { items: [] }, syncedAt: NOW },
+      { id: "B", accountId: "mi", poNumber: "STOK - PO094330", warehouseId: "W-SLE", lines: { items: [] }, syncedAt: NOW },
+    ] });
+    const stats = await run(sh);
+    expect(stats[0].ambiguous).toBe(0);
+    expect((await db.purchaseOrder.findUniqueOrThrow({ where: { id: po.id } })).shipheroId).toBe("B");
   });
 });

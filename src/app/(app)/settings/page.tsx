@@ -46,6 +46,9 @@ export default async function SettingsPage() {
   }
   const unmatched = [...byPrefix.values()].sort((a, b) => b.count - a.count);
   const openStores = stores.filter((s) => !s.closed);
+  // ShipHero profile names seen by the last sync, for the per-store profile picker.
+  const profileStates = await db.syncState.findMany({ where: { key: { startsWith: "sh:wh:" } } });
+  const shipheroProfiles = [...new Set(profileStates.flatMap((r) => ((r.value as { profiles?: string[] })?.profiles ?? [])))].sort();
   const storeCount = (accountId: string) => openStores.filter((s) => accountForStore(s, accounts)?.id === accountId).length;
   const closedStores = stores.filter((s) => s.closed);
   const managers = users.filter((u) => stores.some((s) => s.managerId === u.id));
@@ -93,6 +96,7 @@ export default async function SettingsPage() {
             <div className="divide-y divide-line">{closedStores.map((s) => <StoreRowView key={s.id} s={s} accounts={accounts} />)}</div>
           </details>
         )}
+        <datalist id="shiphero-profiles">{shipheroProfiles.map((n) => <option key={n} value={n} />)}</datalist>
         <datalist id="warehouse-names">{[...new Set([...warehouses.map((w) => w.name), ...stores.map((s) => s.warehouseName)].filter(Boolean))].map((n) => <option key={n!} value={n!} />)}</datalist>
         <datalist id="managers">{users.map((u) => <option key={u.id} value={u.email ?? u.name} />)}</datalist>
         <form action={saveStore} className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
@@ -279,8 +283,12 @@ function StoreRowView({ s, accounts }: { s: StoreWithManager; accounts: Shiphero
           {(() => {
             const a = accountForStore(s, accounts);
             if (!a) return <Pill tone="yellow">No ShipHero account for this warehouse</Pill>;
-            return <Pill tone={tokenSet(a) ? "green" : "gray"}>ShipHero: {a.name}{tokenSet(a) ? "" : " (token not set)"}</Pill>;
+            if (!tokenSet(a)) return <Pill tone="gray">ShipHero: {a.name} (token not set)</Pill>;
+            return s.shipheroWarehouseId
+              ? <Pill tone="green">ShipHero: {a.name} · matched</Pill>
+              : <Pill tone="yellow">ShipHero: no profile match yet</Pill>;
           })()}
+          <input name="shipheroProfile" defaultValue={s.shipheroProfile ?? ""} placeholder={`ShipHero profile (default: ${s.name})`} list="shiphero-profiles" className="w-56" title="Only if the ShipHero warehouse profile is named differently from the store" />
           <input name="asanaProjectId" defaultValue={s.asanaProjectId ?? ""} placeholder="Asana E-Comm project ID" className="w-44" />
           <Button>Save</Button>
         </div>

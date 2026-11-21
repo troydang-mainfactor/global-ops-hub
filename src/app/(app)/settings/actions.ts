@@ -33,13 +33,18 @@ export async function saveStore(f: FormData) {
     skuPrefixes: normalizePrefixes(str(f, "skuPrefixes")),
     managerId: await managerId(opt(f, "manager")),
     warehouseName: opt(f, "warehouseName"),
+    shipheroProfile: opt(f, "shipheroProfile"),
     asanaProjectId: opt(f, "asanaProjectId"),
   };
   if (!data.name) throw new Error("Store needs a name");
   if (code && !/^[A-Z0-9]{2,8}$/.test(code)) throw new Error("Store code must be 2–8 letters/digits");
   await assertPrefixesFree(data.skuPrefixes, id);
-  if (id) await db.store.update({ where: { id }, data });
-  else await db.store.create({ data: { ...data, enabled: f.get("enabled") === "on" } });
+  if (id) {
+    const before = await db.store.findUnique({ where: { id }, select: { shipheroProfile: true } });
+    // A new profile name is re-matched on the next ShipHero sync.
+    const reset = before && before.shipheroProfile !== data.shipheroProfile ? { shipheroWarehouseId: null } : {};
+    await db.store.update({ where: { id }, data: { ...data, ...reset } });
+  } else await db.store.create({ data: { ...data, enabled: f.get("enabled") === "on" } });
   if (id && data.warehouseName) {
     await db.issue.updateMany({ where: { fingerprint: `ING-STORE-WAREHOUSE:${id}`, status: "open" }, data: { status: "resolved", resolution: "Set in Settings" } });
   }

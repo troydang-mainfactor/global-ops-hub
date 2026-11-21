@@ -25,7 +25,8 @@ model Store {
   manager           User?            @relation(fields: [managerId], references: [id])
   shipheroAccountId String?
   shipheroAccount   ShipheroAccount? @relation(fields: [shipheroAccountId], references: [id])
-  shipheroWarehouseId String? // added: the store's warehouse in its ShipHero account
+  shipheroWarehouseId String? // added: the store's warehouse in its ShipHero account (set by the sync)
+  shipheroProfile   String? // added: ShipHero warehouse profile name for this store, if it differs from the store name
   asanaProjectId    String? // E-Comm board for launch cards
   enabled           Boolean          @default(false) // rollout switch
   products          Product[]
