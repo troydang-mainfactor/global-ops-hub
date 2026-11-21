@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifySubject, htmlToText, parseEmail, splitTracking } from "@/lib/email/parse";
+import { classifySubject, forwardedOriginal, htmlToText, parseEmail, splitTracking } from "@/lib/email/parse";
 import * as f from "./fixtures/emails";
 
 function ok(input: { subject: string; body: string; receivedAt?: Date }) {
@@ -125,5 +125,23 @@ describe("helpers", () => {
       .map((l) => `<div>${l.replace(/(https:\S+)/, '<a href="$1">$1</a>')}</div>`)
       .join("");
     expect(ok({ ...f.shippedFalr, body: htmlToText(html) })).toMatchObject({ deliveryDate: "2026-12-02", tracking: ["1Z999AA10123456784", "1Z999AA10123456785"] });
+  });
+});
+
+describe("forwarded emails", () => {
+  it("reads the original headers from a Gmail forward", () => {
+    const h = forwardedOriginal(`hi\n\n---------- Forwarded message ---------\nFrom: Jonathan Stanley <j@x.com>\nDate: Mon, Nov 10, 2026 at 3:04 PM\nSubject: New Order A/ PO1/ MAINF MI\nTo: <in@x.com>\n\nbody`);
+    expect(h?.subject).toBe("New Order A/ PO1/ MAINF MI");
+    expect(h?.date?.getFullYear()).toBe(2026);
+    expect(h?.date?.getMonth()).toBe(10);
+    expect(h?.date?.getDate()).toBe(10);
+  });
+  it("reads an Outlook-style forward", () => {
+    const h = forwardedOriginal(`From: Jonathan Stanley\r\nSent: Monday, November 10, 2026 3:04 PM\r\nTo: inbound\r\nSubject: PO094108 /FALRNR103455RD / MAINF MI\r\n\r\nbody`);
+    expect(h?.subject).toBe("PO094108 /FALRNR103455RD / MAINF MI");
+    expect(h?.date?.getDate()).toBe(10);
+  });
+  it("returns null when there is no forwarded block", () => {
+    expect(forwardedOriginal(f.issuedStok.body)).toBeNull();
   });
 });

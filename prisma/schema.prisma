@@ -18,20 +18,20 @@ model Store {
   manager           User?            @relation(fields: [managerId], references: [id])
   shipheroAccountId String?
   shipheroAccount   ShipheroAccount? @relation(fields: [shipheroAccountId], references: [id])
+  shipheroWarehouseId String? // added: the store's warehouse in its ShipHero account
   asanaProjectId    String? // E-Comm board for launch cards
   enabled           Boolean          @default(false) // rollout switch
   products          Product[]
   purchaseOrders    PurchaseOrder[]
 }
 
+// Warehouse codes seen in PO emails. The ShipHero account and warehouse come from the
+// store (Store.shipheroAccountId / shipheroWarehouseId), not from the email code.
 model Warehouse {
-  id                  String           @id @default(cuid())
-  emailCode           String           @unique // "MAINF MI", "BSI UK"
-  name                String? // added
-  shipheroAccountId   String?
-  shipheroAccount     ShipheroAccount? @relation(fields: [shipheroAccountId], references: [id])
-  shipheroWarehouseId String?
-  inShiphero          Boolean          @default(true)
+  id         String  @id @default(cuid())
+  emailCode  String  @unique // "MAINF MI", "BSI UK"
+  name       String? // added
+  inShiphero Boolean @default(true)
 }
 
 model ShipheroAccount {
@@ -41,7 +41,6 @@ model ShipheroAccount {
   tokenRef          String // NAME of the env var holding the refresh token, never the token
   customerAccountId String?
   stores            Store[]
-  warehouses        Warehouse[]
 }
 
 model Product {

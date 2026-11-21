@@ -1,11 +1,15 @@
 // Gmail REST client for the inbound PO mailbox.
 // Auth: Workspace service account with domain-wide delegation (GMAIL_SA_KEY_JSON),
-// or OAuth for that mailbox (GMAIL_OAUTH_*). Scope: gmail.modify (read + label).
+// or OAuth for one mailbox (GMAIL_OAUTH_*). Read-only by default; GMAIL_APPLY_LABELS=1 switches to
+// gmail.modify so processed messages get an "ops-hub/…" label (optional; the DB tracks what's processed).
 
 import { JWT, OAuth2Client } from "google-auth-library";
 import type { GmailAttachmentRef, GmailClient, GmailMessage } from "./types";
 
-const SCOPES = ["https://www.googleapis.com/auth/gmail.modify"];
+export function gmailLabelsEnabled(): boolean {
+  return process.env.GMAIL_APPLY_LABELS === "1";
+}
+const scopes = () => [`https://www.googleapis.com/auth/gmail.${gmailLabelsEnabled() ? "modify" : "readonly"}`];
 const API = "https://gmail.googleapis.com/gmail/v1/users/me";
 
 type Auth = JWT | OAuth2Client;
@@ -23,7 +27,7 @@ function makeAuth(mailbox: string): Auth {
   if (raw) {
     const json = raw.trim().startsWith("{") ? raw : Buffer.from(raw, "base64").toString("utf8");
     const key = JSON.parse(json) as { client_email: string; private_key: string };
-    return new JWT({ email: key.client_email, key: key.private_key, scopes: SCOPES, subject: mailbox });
+    return new JWT({ email: key.client_email, key: key.private_key, scopes: scopes(), subject: mailbox });
   }
   const c = new OAuth2Client(process.env.GMAIL_OAUTH_CLIENT_ID, process.env.GMAIL_OAUTH_CLIENT_SECRET);
   c.setCredentials({ refresh_token: process.env.GMAIL_OAUTH_REFRESH_TOKEN });
@@ -109,6 +113,7 @@ export function createGmailClient(mailbox = process.env.GMAIL_MAILBOX ?? ""): Gm
       return b64url(a.data);
     },
     async addLabel(messageId, name) {
+      if (!gmailLabelsEnabled()) return;
       const id = await labelId(name);
       await call(`/messages/${messageId}/modify`, { method: "POST", body: { addLabelIds: [id] } });
     },

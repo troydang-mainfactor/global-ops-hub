@@ -3,12 +3,14 @@ import type { GmailClient, GmailMessage } from "@/lib/gmail/types";
 
 export function fakeGmail(messages: GmailMessage[], attachments: Record<string, Buffer> = {}) {
   const labels: Record<string, string[]> = {};
-  const client: GmailClient & { labels: typeof labels; fetches: number; messages: GmailMessage[] } = {
+  const client: GmailClient & { labels: typeof labels; fetches: number; messages: GmailMessage[]; queries: string[] } = {
     mailbox: "inbound@example.com",
     labels,
     fetches: 0,
     messages,
-    async listMessageIds() {
+    queries: [],
+    async listMessageIds(q) {
+      client.queries.push(q);
       return [...client.messages].reverse().map((m) => m.id); // Gmail lists newest first
     },
     async getMessage(id) {

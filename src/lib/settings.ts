@@ -6,7 +6,8 @@ export const DEFAULT_SETTINGS = {
   shippedNotReceivedDays: 10, // R04
   issuedNoShipheroHours: 48, // R01
   launchWindowDays: 14, // R12 / At risk
-  preorderTags: ["pre-order", "preorder"], // ShipHero product tags (§3), case-insensitive
+  preorderTags: ["pre-order"], // ShipHero product tags synced from Shopify (§3), case-insensitive
+  gmailQuery: "label:ops-hub-inbound", // Gmail search that finds ONLY the PO emails; never leave empty
   backfillDays: 120, // Phase 1 backfill window
   incrementalDays: 3, // how far back each 5-minute poll looks (idempotent, so overlap is fine)
   aiLowConfidence: 0.8, // below this an AI parse raises R17

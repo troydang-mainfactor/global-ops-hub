@@ -18,13 +18,15 @@ describe.skipIf(!hasTestDb)("Gmail ingest (DB)", () => {
     await resetDb(db);
     await db.store.createMany({
       data: [
-        { name: "Stokes", code: "STOK", enabled: true },
-        { name: "Falr", code: "FALR", enabled: true },
+        { name: "Stokes", code: "STOK", enabled: true, shipheroAccountId: null, shipheroWarehouseId: null },
+        { name: "Falr", code: "FALR", enabled: true, shipheroWarehouseId: "V2FyZWhvdXNlOjE=" },
         { name: "Mega", code: "MEGA", enabled: true },
         { name: "Evan", code: "EVAN", enabled: false },
       ],
     });
-    await db.warehouse.create({ data: { emailCode: "MAINF MI", shipheroWarehouseId: "V2FyZWhvdXNlOjE=" } });
+    await db.warehouse.create({ data: { emailCode: "MAINF MI" } });
+    const acct = await db.shipheroAccount.create({ data: { name: "Main", type: "direct", tokenRef: "SHIPHERO_TOKEN_MAIN" } });
+    await db.store.update({ where: { code: "FALR" }, data: { shipheroAccountId: acct.id } });
   });
 
   it("creates POs, lines, products and timeline events from both formats", async () => {
@@ -103,12 +105,42 @@ describe.skipIf(!hasTestDb)("Gmail ingest (DB)", () => {
     expect(await db.emailMessage.findUnique({ where: { id: "m1" } })).toMatchObject({ status: "skipped", skipReason: "unknown_store", baseSku: "ZZZZNR100001BK" });
   });
 
-  it("raises an issue for unknown or unmapped warehouse codes", async () => {
+  it("flags new warehouse codes once, as FYI", async () => {
     await runGmailIngest({ db, gmail: fakeGmail([msg("m1", f.issuedSoUk)]), ai: null, now: () => NOW }, { mode: "backfill" });
-    const issue = await db.issue.findUniqueOrThrow({ where: { fingerprint: "ING-WAREHOUSE:BSI UK" } });
-    expect(issue).toMatchObject({ severity: "yellow", status: "open" });
+    expect(await db.issue.findUniqueOrThrow({ where: { fingerprint: "ING-WAREHOUSE:BSI UK" } })).toMatchObject({ severity: "info", status: "open" });
     expect(await db.warehouse.findUnique({ where: { emailCode: "BSI UK" } })).not.toBeNull();
-    expect(await db.issue.findUnique({ where: { fingerprint: "ING-WAREHOUSE:MAINF MI" } })).toBeNull(); // mapped
+    expect(await db.issue.findUnique({ where: { fingerprint: "ING-WAREHOUSE:MAINF MI" } })).toBeNull(); // already known
+  });
+
+  it("raises an issue when the store has no ShipHero account/warehouse, not when it does", async () => {
+    await runGmailIngest({ db, gmail: fakeGmail([msg("m1", f.issuedStok), msg("m2", f.shippedFalr)]), ai: null, now: () => NOW }, { mode: "backfill" });
+    const stok = await db.store.findUniqueOrThrow({ where: { code: "STOK" } });
+    const falr = await db.store.findUniqueOrThrow({ where: { code: "FALR" } });
+    expect(await db.issue.findUnique({ where: { fingerprint: `ING-STORE-SHIPHERO:${stok.id}` } })).toMatchObject({ severity: "yellow" });
+    expect(await db.issue.findUnique({ where: { fingerprint: `ING-STORE-SHIPHERO:${falr.id}` } })).toBeNull();
+  });
+
+  it("only searches Gmail with the configured filter", async () => {
+    const gmail = fakeGmail([]);
+    await runGmailIngest({ db, gmail, ai: null, now: () => NOW }, { mode: "backfill" });
+    expect(gmail.queries).toEqual(["(label:ops-hub-inbound) newer_than:120d"]);
+    await db.setting.create({ data: { key: "gmailQuery", value: "  " } });
+    await expect(runGmailIngest({ db, gmail, ai: null, now: () => NOW }, { mode: "incremental" })).rejects.toThrow(/filter is empty/);
+  });
+
+  it("uses the original subject and send time of a forwarded email", async () => {
+    const fwdBody = `---------- Forwarded message ---------
+From: Jonathan Stanley <jonathan.stanley@globalmerchservices.com>
+Date: Mon, Nov 10, 2026 at 3:04 PM
+Subject: New Order STOKNR104581OT/ PO094330/ MAINF MI
+To: <globalinboundupdates@mainfactor.com>
+
+${f.issuedStok.body}`;
+    const fwd = { subject: "Fwd: New Order STOKNR104581OT/ PO094330/ MAINF MI", body: fwdBody, receivedAt: new Date("2026-11-19T00:00:00Z") };
+    await runGmailIngest({ db, gmail: fakeGmail([msg("m1", fwd)]), ai: null, now: () => NOW }, { mode: "backfill" });
+    const po = await db.purchaseOrder.findFirstOrThrow({ where: { orderNo: "PO094330" } });
+    expect(po.issuedAt?.toISOString().slice(0, 10)).toBe("2026-11-10");
+    expect(await db.emailMessage.findUnique({ where: { id: "m1" } })).toMatchObject({ subject: "New Order STOKNR104581OT/ PO094330/ MAINF MI", from: expect.stringContaining("jonathan.stanley") });
   });
 
   it("flags a subject/body warehouse mismatch", async () => {
@@ -202,7 +234,7 @@ describe.skipIf(!hasTestDb)("Gmail ingest (DB)", () => {
   it("does not reopen dismissed issues", async () => {
     const gmail = fakeGmail([msg("m1", f.issuedSoUk)]);
     await runGmailIngest({ db, gmail, ai: null, now: () => NOW }, { mode: "backfill" });
-    await db.issue.update({ where: { fingerprint: "ING-WAREHOUSE:BSI UK" }, data: { status: "dismissed", resolution: "UK warehouse handled outside ShipHero" } });
+    await db.issue.update({ where: { fingerprint: "ING-WAREHOUSE:BSI UK" }, data: { status: "dismissed", resolution: "Known UK warehouse" } });
     gmail.messages.push(msg("m2", { ...f.issuedSoUk, subject: "New Order STOKRX004234OT/ SO0058137/ BSI UK" }));
     await runGmailIngest({ db, gmail, ai: null, now: () => NOW }, { mode: "incremental" });
     expect((await db.issue.findUniqueOrThrow({ where: { fingerprint: "ING-WAREHOUSE:BSI UK" } })).status).toBe("dismissed");

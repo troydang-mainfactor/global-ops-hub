@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { getSettings, DEFAULT_SETTINGS } from "@/lib/settings";
 import { JOBS } from "@/lib/jobs/registry";
-import { gmailConfigured } from "@/lib/gmail/client";
+import { gmailConfigured, gmailLabelsEnabled } from "@/lib/gmail/client";
 import { aiConfigured, aiModel } from "@/lib/ai/client";
 import { Button, Card, Pill, fmtDateTime } from "@/components/ui";
 import {
@@ -15,6 +15,7 @@ const THRESHOLD_LABELS: Record<keyof typeof DEFAULT_SETTINGS, string> = {
   issuedNoShipheroHours: "R01: issued with no ShipHero PO after (hours)",
   launchWindowDays: "Launch window (days)",
   preorderTags: "Pre-order product tags (comma separated)",
+  gmailQuery: "Gmail search for PO emails (only these are read)",
   backfillDays: "Gmail backfill window (days)",
   incrementalDays: "Gmail poll looks back (days)",
   aiLowConfidence: "AI parse confidence below this raises R17 (0–1)",
@@ -44,14 +45,14 @@ export default async function SettingsPage() {
 
       <Card id="connections" title="Connections">
         <ul className="space-y-1 text-sm">
-          <Conn ok={gmailConfigured()} label="Gmail" detail={process.env.GMAIL_MAILBOX || "GMAIL_MAILBOX not set"} />
+          <Conn ok={gmailConfigured()} label="Gmail" detail={`${process.env.GMAIL_MAILBOX || "GMAIL_MAILBOX not set"} · search: ${settings.gmailQuery} · ${gmailLabelsEnabled() ? "read + label" : "read-only"}`} />
           <Conn ok={aiConfigured()} label="Claude API" detail={aiConfigured() ? `${aiModel()} (PDF parsing + email fallback)` : "ANTHROPIC_API_KEY not set: regex only, PDFs wait"} />
           <Conn ok={Boolean(process.env.CRON_SECRET)} label="Cron secret" detail="Protects /api/jobs/* for the scheduler" />
         </ul>
       </Card>
 
       <Card id="stores" title={`Stores (${stores.filter((s) => s.enabled).length} of ${stores.length} enabled)`}>
-        <p className="mb-3 text-sm text-muted">The code is the SKU prefix. Only enabled stores are processed. Turning a store on applies its already-seen emails on the next run.</p>
+        <p className="mb-3 text-sm text-muted">The code is the SKU prefix. Each store has its own ShipHero account and warehouse; its POs are matched there. Only enabled stores are processed. Turning a store on applies its already-seen emails on the next run.</p>
         {managers.length > 0 && (
           <div className="mb-3 flex flex-wrap gap-2 text-sm">
             {managers.map((m) => (
@@ -82,6 +83,7 @@ export default async function SettingsPage() {
                   <option value="">ShipHero account…</option>
                   {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
+                <input name="shipheroWarehouseId" defaultValue={s.shipheroWarehouseId ?? ""} placeholder="ShipHero warehouse ID" className="w-44 font-mono" />
                 <input name="asanaProjectId" defaultValue={s.asanaProjectId ?? ""} placeholder="Asana E-Comm project ID" className="w-44" />
                 <Button>Save</Button>
               </form>
@@ -117,22 +119,16 @@ export default async function SettingsPage() {
         )}
       </Card>
 
-      <Card id="warehouses" title="Warehouses">
-        <p className="mb-3 text-sm text-muted">Map each warehouse code from the PO emails to its ShipHero account and warehouse. New codes are added here automatically and raise an issue until mapped.</p>
+      <Card id="warehouses" title="Warehouse codes">
+        <p className="mb-3 text-sm text-muted">Codes seen in the PO emails. The ShipHero account and warehouse are set per store (above). Untick &quot;In ShipHero&quot; for a warehouse that isn&apos;t tracked in ShipHero.</p>
         <div className="divide-y divide-line">
           {warehouses.map((w) => (
             <div key={w.id} className="flex flex-wrap items-center gap-2 py-2">
               <form action={saveWarehouse} className="flex flex-1 flex-wrap items-center gap-2">
                 <input type="hidden" name="id" value={w.id} />
                 <input name="emailCode" defaultValue={w.emailCode} className="w-28 font-mono" aria-label="Email code" />
-                <input name="name" defaultValue={w.name ?? ""} placeholder="Name" className="w-36" />
-                <select name="shipheroAccountId" defaultValue={w.shipheroAccountId ?? ""}>
-                  <option value="">ShipHero account…</option>
-                  {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
-                <input name="shipheroWarehouseId" defaultValue={w.shipheroWarehouseId ?? ""} placeholder="ShipHero warehouse ID" className="w-48 font-mono" />
+                <input name="name" defaultValue={w.name ?? ""} placeholder="Name" className="w-44" />
                 <label className="flex items-center gap-1 text-sm"><input type="checkbox" name="inShiphero" defaultChecked={w.inShiphero} /> In ShipHero</label>
-                {w.inShiphero && !w.shipheroWarehouseId ? <Pill tone="yellow">unmapped</Pill> : <Pill tone="green">ok</Pill>}
                 <Button>Save</Button>
               </form>
               <form action={deleteWarehouse}>
@@ -186,7 +182,7 @@ export default async function SettingsPage() {
             return (
               <label key={k} className="flex items-center justify-between gap-2 text-sm">
                 <span className="text-muted">{THRESHOLD_LABELS[k]}</span>
-                <input name={k} defaultValue={Array.isArray(v) ? v.join(", ") : String(v)} className={Array.isArray(v) ? "w-48" : "w-20 text-right"} />
+                <input name={k} defaultValue={Array.isArray(v) ? v.join(", ") : String(v)} className={typeof v === "number" ? "w-20 text-right" : "w-56"} />
               </label>
             );
           })}

@@ -211,3 +211,35 @@ export function htmlToText(html: string): string {
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n");
 }
+
+export interface ForwardedHeader {
+  subject: string | null;
+  date: Date | null;
+  from: string | null;
+}
+
+/**
+ * Reads the original headers from a forwarded message body (Gmail "---------- Forwarded message ---------"
+ * or Outlook "From: / Sent: / Subject:" blocks). Returns null if the body has no forwarded block.
+ */
+export function forwardedOriginal(body: string): ForwardedHeader | null {
+  const text = body.replace(/\r\n?/g, "\n");
+  const start = text.search(/^-{5,}\s*Forwarded message\s*-{5,}|^Begin forwarded message:|^From:.+\n(?:.*\n)?(?:Sent|Date):/im);
+  if (start === -1) return null;
+  const block = text.slice(start, start + 1500);
+  const get = (label: string) => block.match(new RegExp(`^\\s*${label}:[ \\t]*(.+)$`, "im"))?.[1]?.trim() ?? null;
+  const rawDate = get("Date") ?? get("Sent");
+  return { subject: get("Subject"), date: rawDate ? parseHeaderDate(rawDate) : null, from: get("From") };
+}
+
+/** "Mon, Nov 10, 2026 at 3:04 PM" or "Monday, November 10, 2026 3:04 PM" → Date (server local time). */
+export function parseHeaderDate(raw: string): Date | null {
+  const cleaned = raw
+    .replace(/\s+at\s+/i, " ")
+    .replace(/^(mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+/i, "")
+    .replace(/\s*\(.*\)\s*$/, "")
+    .trim();
+  const t = Date.parse(cleaned);
+  if (!Number.isNaN(t)) return new Date(t);
+  return parseLooseDate(cleaned.replace(/\s+\d{1,2}:\d{2}.*$/, ""));
+}

@@ -29,11 +29,15 @@ export async function saveStore(f: FormData) {
     code: str(f, "code").toUpperCase(),
     managerId: await managerId(opt(f, "manager")),
     shipheroAccountId: opt(f, "shipheroAccountId"),
+    shipheroWarehouseId: opt(f, "shipheroWarehouseId"),
     asanaProjectId: opt(f, "asanaProjectId"),
   };
   if (!data.name || !/^[A-Z0-9]{2,8}$/.test(data.code)) throw new Error("Store needs a name and a 2–8 character code");
   if (id) await db.store.update({ where: { id }, data });
   else await db.store.create({ data: { ...data, enabled: f.get("enabled") === "on" } });
+  if (id && data.shipheroAccountId && data.shipheroWarehouseId) {
+    await db.issue.updateMany({ where: { fingerprint: `ING-STORE-SHIPHERO:${id}`, status: "open" }, data: { status: "resolved", resolution: "Set in Settings" } });
+  }
   done();
 }
 
@@ -80,17 +84,13 @@ export async function saveWarehouse(f: FormData) {
   const data = {
     emailCode: normalizeWarehouseCode(str(f, "emailCode")),
     name: opt(f, "name"),
-    shipheroAccountId: opt(f, "shipheroAccountId"),
-    shipheroWarehouseId: opt(f, "shipheroWarehouseId"),
     inShiphero: f.get("inShiphero") === "on",
   };
   if (!data.emailCode) throw new Error("Warehouse code required");
   if (id) await db.warehouse.update({ where: { id }, data });
   else await db.warehouse.create({ data });
-  // Mapping a warehouse (or marking it not-in-ShipHero) resolves its ingest issue.
-  if (!data.inShiphero || data.shipheroWarehouseId) {
-    await db.issue.updateMany({ where: { fingerprint: `ING-WAREHOUSE:${data.emailCode}`, status: "open" }, data: { status: "resolved", resolution: "Mapped in Settings" } });
-  }
+  // Reviewing a new code in Settings resolves its FYI issue.
+  await db.issue.updateMany({ where: { fingerprint: `ING-WAREHOUSE:${data.emailCode}`, status: "open" }, data: { status: "resolved", resolution: "Reviewed in Settings" } });
   done();
 }
 
@@ -125,7 +125,10 @@ export async function saveThresholds(f: FormData) {
     const raw = f.get(key);
     if (raw === null) continue;
     const def = DEFAULT_SETTINGS[key];
-    if (Array.isArray(def)) {
+    if (typeof def === "string") {
+      const v = String(raw).trim();
+      if (v) await setSetting(db, key, v as never); // never save an empty Gmail filter
+    } else if (Array.isArray(def)) {
       const list = String(raw).split(",").map((s) => s.trim()).filter(Boolean);
       await setSetting(db, key, list as never);
     } else {

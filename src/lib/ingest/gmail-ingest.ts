@@ -6,7 +6,7 @@ import type { Db } from "../db";
 import type { AiParser } from "../ai/types";
 import type { GmailAttachmentRef, GmailClient, GmailMessage } from "../gmail/types";
 import { gmailViewUrl } from "../gmail/client";
-import { htmlToText, parseEmail, type ParsedEmail } from "../email/parse";
+import { forwardedOriginal, htmlToText, parseEmail, type ParsedEmail } from "../email/parse";
 import { parseLooseDate } from "../email/dates";
 import { baseSku, normalizeSku, normalizeWarehouseCode, storeCodeForSku, variantSku } from "../sku";
 import { laterStage } from "../stages";
@@ -75,7 +75,10 @@ export async function runGmailIngest(deps: IngestDeps, opts: { mode: "incrementa
   await reapplySkipped(ctx);
 
   const days = opts.mode === "backfill" ? ctx.settings.backfillDays : ctx.settings.incrementalDays;
-  const ids = await deps.gmail.listMessageIds(`newer_than:${days}d`);
+  const filter = String(ctx.settings.gmailQuery ?? "").trim();
+  // Never scan a whole mailbox: without a filter every email would be parsed (and sent to Claude).
+  if (!filter) throw new Error("Gmail search filter is empty. Set it in Settings → Thresholds (e.g. label:ops-hub-inbound).");
+  const ids = await deps.gmail.listMessageIds(`(${filter}) newer_than:${days}d`);
   ctx.stats.listed = ids.length;
 
   const seen = await deps.db.emailMessage.findMany({ where: { id: { in: ids } }, select: { id: true, status: true, attempts: true } });
@@ -113,7 +116,11 @@ export async function runGmailIngest(deps: IngestDeps, opts: { mode: "incrementa
 async function processMessage(ctx: Ctx, m: GmailMessage) {
   const { db, ai } = ctx.deps;
   const body = m.textBody ?? (m.htmlBody ? htmlToText(m.htmlBody) : "");
-  const regex = parseEmail({ subject: m.subject, body, receivedAt: m.internalDate });
+  // Forwarded copies: use the original subject and send time, not the forward's.
+  const fwd = /^\s*(fwd?|fw)\s*:/i.test(m.subject) ? forwardedOriginal(body) : null;
+  const subject = fwd?.subject ?? m.subject;
+  const receivedAt = fwd?.date ?? m.internalDate;
+  const regex = parseEmail({ subject, body, receivedAt });
 
   let email: ParsedEmail | null = regex.ok ? regex.data : null;
   let parsedBy: string | null = regex.ok ? "regex" : null;
@@ -123,13 +130,13 @@ async function processMessage(ctx: Ctx, m: GmailMessage) {
   const needsAi = !email || email.missing.some((f) => f !== "skuMismatch");
   if (needsAi && ai) {
     ctx.stats.aiFallbacks++;
-    const r = await ai.parseEmail({ subject: m.subject, body });
+    const r = await ai.parseEmail({ subject, body });
     aiInfo = { promptVersion: r.promptVersion, model: r.model, confidence: r.confidence };
     if (email) {
-      email = mergeAi(email, r, m.internalDate);
+      email = mergeAi(email, r, receivedAt);
       parsedBy = "regex+ai";
     } else if (r.kind !== "unknown" && r.order_no && r.sku && r.warehouse) {
-      email = fromAi(r, m.internalDate);
+      email = fromAi(r, receivedAt);
       parsedBy = "ai";
     } else {
       reason = `AI could not classify (${r.kind}, confidence ${r.confidence.toFixed(2)})`;
@@ -137,7 +144,7 @@ async function processMessage(ctx: Ctx, m: GmailMessage) {
   }
 
   const base = {
-    id: m.id, threadId: m.threadId, subject: m.subject, from: m.from, receivedAt: m.internalDate,
+    id: m.id, threadId: m.threadId, subject, from: fwd?.from ?? m.from, receivedAt,
   };
 
   if (!email) {
@@ -175,7 +182,7 @@ async function processMessage(ctx: Ctx, m: GmailMessage) {
     return;
   }
 
-  await applyParsed(ctx, store!, { id: m.id, threadId: m.threadId, receivedAt: m.internalDate }, stored, parsedBy!);
+  await applyParsed(ctx, store!, { id: m.id, threadId: m.threadId, receivedAt }, stored, parsedBy!);
   ctx.stats.processed++;
 }
 
@@ -212,7 +219,7 @@ async function applyParsed(
   const at = msg.receivedAt;
   const link = gmailViewUrl(gmail.mailbox, msg.threadId, msg.id);
 
-  await checkWarehouse(ctx, e.warehouseCode, link);
+  await checkWarehouse(ctx, store, e.warehouseCode, link);
   if (e.kind === "shipped" && e.bodyWarehouseCode && e.bodyWarehouseCode !== e.warehouseCode) {
     await raiseIssue(db, {
       ruleId: "ING-WH-MISMATCH", severity: "yellow",
@@ -299,18 +306,30 @@ async function applyParsed(
   await safeLabel(ctx, msg.id, LABEL_PROCESSED);
 }
 
-async function checkWarehouse(ctx: Ctx, code: string, link: string) {
+/**
+ * ShipHero account + warehouse come from the store. Raise an issue when the store isn't set up yet,
+ * and an FYI the first time a new warehouse code shows up in the emails.
+ */
+async function checkWarehouse(ctx: Ctx, store: Store, code: string, link: string) {
   const { db } = ctx.deps;
   let wh = await db.warehouse.findUnique({ where: { emailCode: code } });
-  const isNew = !wh;
-  if (!wh) wh = await db.warehouse.create({ data: { emailCode: code } });
-  if (isNew || (wh.inShiphero && !wh.shipheroWarehouseId)) {
+  if (!wh) {
+    wh = await db.warehouse.create({ data: { emailCode: code } });
     await raiseIssue(db, {
-      ruleId: "ING-WAREHOUSE", severity: "yellow",
-      title: isNew ? `New warehouse code "${code}" in PO emails` : `Warehouse "${code}" is not mapped to ShipHero`,
-      detail: "Map it to a ShipHero account and warehouse in Settings → Warehouses (or mark it as not in ShipHero).",
+      ruleId: "ING-WAREHOUSE", severity: "info",
+      title: `New warehouse code "${code}" in PO emails`,
+      detail: "Name it in Settings → Warehouses, or untick \"In ShipHero\" if goods there aren't tracked in ShipHero.",
       fingerprint: `ING-WAREHOUSE:${code}`,
-      evidence: { warehouseCode: code, gmail: link },
+      evidence: { warehouseCode: code, store: store.code, gmail: link },
+    }, ctx.now);
+  }
+  if (wh.inShiphero && (!store.shipheroAccountId || !store.shipheroWarehouseId)) {
+    await raiseIssue(db, {
+      ruleId: "ING-STORE-SHIPHERO", severity: "yellow",
+      title: `${store.code}: ShipHero ${store.shipheroAccountId ? "warehouse" : "account"} not set`,
+      detail: "Set the store's ShipHero account and warehouse in Settings → Stores so its POs can be matched in ShipHero.",
+      fingerprint: `ING-STORE-SHIPHERO:${store.id}`,
+      evidence: { store: store.code, warehouseCode: code, gmail: link },
     }, ctx.now);
   }
 }
