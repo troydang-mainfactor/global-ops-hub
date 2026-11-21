@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { STAGES, STAGE_LABEL, type Stage } from "@/lib/stages";
 import { Card, Pill, daysSince, fmtDate } from "@/components/ui";
+import { trackingUrl } from "@/lib/tracking";
 
 // Basic list so ingest results can be checked now. The full Inbound screen (§8.2) comes in Phase 1 step 3.
 export default async function Inbound() {
@@ -65,11 +66,17 @@ export default async function Inbound() {
                           {p.tracking.length > 0 && (
                             <div className="flex flex-wrap gap-1">
                               {p.tracking.map((t) => (
-                                <a key={t} className="font-mono underline" target="_blank" rel="noreferrer" href={t.startsWith("1Z") ? `https://www.ups.com/track?tracknum=${t}` : `https://www.google.com/search?q=${t}`}>{t}</a>
+                                <a key={t} className="font-mono underline" target="_blank" rel="noreferrer" href={trackingUrl(t)}>{t}</a>
                               ))}
                             </div>
                           )}
                           {p.receivedAt && <div><span className="text-muted">Received</span> {fmtDate(p.receivedAt)}</div>}
+                          <div>
+                            <span className="text-muted">ShipHero</span>{" "}
+                            {p.shipheroId
+                              ? `matched${p.shipheroId.includes(",") ? ` (${p.shipheroId.split(",").length} POs, one per SKU)` : ""}`
+                              : <span className="text-amber-600">no ShipHero PO ending in {p.orderNo} found yet</span>}
+                          </div>
                           {p.productionTaskUrl && <a className="underline" href={p.productionTaskUrl} target="_blank" rel="noreferrer">Production task</a>}
                         </div>
                       </div>
@@ -85,3 +92,4 @@ export default async function Inbound() {
     </div>
   );
 }
+
