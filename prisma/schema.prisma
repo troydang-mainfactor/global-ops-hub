@@ -73,6 +73,8 @@ model Variant {
   backorder      Int       @default(0)
   preorder       Boolean   @default(false)
   preorderSource String? // order_tag | product_tag | asana | sell_ahead
+  tags           String[] // added: ShipHero product tags
+  shipheroAccountId String? // added: account the inventory came from
   syncedAt       DateTime?
 }
 
@@ -221,6 +223,28 @@ model EmailMessage {
 
 // added: thresholds and lists editable in Settings
 model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+// added: raw ShipHero POs, cached so a PO email arriving after the ShipHero PO still matches.
+model ShipheroPo {
+  id                String   @id // ShipHero PurchaseOrder.id
+  accountId         String
+  poNumber          String // e.g. "STOK - PO094330"
+  warehouseId       String?
+  fulfillmentStatus String?
+  poDate            DateTime?
+  dateClosed        DateTime?
+  lines             Json // [{sku, quantity, quantityReceived, quantityRejected, fulfillmentStatus}]
+  syncedAt          DateTime
+
+  @@index([accountId])
+}
+
+// added: resumable cursors for sync jobs (e.g. "updated_from" per account and query)
+model SyncState {
   key       String   @id
   value     Json
   updatedAt DateTime @updatedAt

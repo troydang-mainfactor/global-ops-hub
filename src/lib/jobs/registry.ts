@@ -4,6 +4,9 @@ import { claudeParser } from "../ai/parser";
 import { aiConfigured } from "../ai/client";
 import { createGmailClient, gmailConfigured } from "../gmail/client";
 import { runGmailIngest } from "../ingest/gmail-ingest";
+import { createShipheroClient } from "../shiphero/client";
+import { runShipheroSync } from "../shiphero/sync";
+import { tokenSet } from "../shiphero/accounts";
 
 export interface JobDef {
   name: string;
@@ -30,6 +33,18 @@ export const JOBS: JobDef[] = [
     schedule: "Manual",
     ready: () => (gmailConfigured() ? null : "Gmail credentials not set"),
     run: async () => runGmailIngest({ db, gmail: createGmailClient(), ai: aiConfigured() ? claudeParser : null }, { mode: "backfill" }) as never,
+  },
+  {
+    name: "shiphero-sync",
+    title: "ShipHero sync",
+    description: "Matches POs in ShipHero, updates received quantities and stages, inventory, backorders and pre-order tags. Accounts without a token are skipped.",
+    schedule: "Every 5 minutes",
+    ready: () => null, // checked per account inside the job
+    run: async () =>
+      runShipheroSync({
+        db,
+        clientFor: (a) => (tokenSet(a) ? createShipheroClient({ refreshToken: process.env[a.tokenRef]! }) : null),
+      }) as never,
   },
 ];
 

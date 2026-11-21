@@ -25,7 +25,7 @@ export default async function Today() {
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Tile label="Needs action" value={red} tone={red ? "red" : undefined} />
         <Tile label="Arriving this week" value={arriving.length} />
-        <Tile label="Just received" value={received} hint="needs ShipHero sync" />
+        <Tile label="Just received" value={received} hint="last 7 days" />
         <Tile label="Launches at risk" value="—" hint="Phase 2" />
       </div>
 

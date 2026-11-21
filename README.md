@@ -2,7 +2,7 @@
 
 Tracks every product from **PO issued → shipped → received → launched**. Spec: [`SPEC.md`](SPEC.md). Reference material: [`reference/`](reference/).
 
-**Built so far:** Phase 0 (foundation) and Phase 1 step 1 (Gmail ingest + PO PDF parsing).
+**Built so far:** Phase 0 (foundation), Phase 1 step 1 (Gmail ingest + PO PDF parsing) and step 2 (ShipHero sync).
 
 ## Quick start (local)
 
@@ -95,6 +95,26 @@ Issues raised in this step:
 | `R17` | Email or PDF read by AI with low confidence | info |
 
 Prompts are versioned in `src/prompts/`; the version is stored with each result.
+
+## How ShipHero sync works
+
+`src/lib/shiphero/sync.ts`, job `shiphero-sync` (every 5 minutes). One ShipHero login per warehouse; accounts without a token are skipped.
+
+1. Reads the account's warehouse and saves its ID on the stores that use it.
+2. Fetches purchase orders updated since the last full pass (first run: the backfill window) into a cache table, so a PO email that arrives after the ShipHero PO still matches.
+3. Matches local POs where the ShipHero PO number **ends with** the email order number (`STOK - PO094330` ↔ `PO094330`). Two or more matches → issue, no guess.
+4. Fills per-size ShipHero and received quantities. Stage: any received → **Receiving**, all received → **Received** (date closed, else first seen). Judged on quantities, not status text.
+5. Inventory (`warehouse_products`): on hand, available, allocated, backorder per SKU, incremental.
+6. Pre-order: SKUs with the ShipHero product tag from Settings (default `pre-order`, any case). Removing the tag in ShipHero clears it here.
+
+Large first runs are split across runs: each run stops after ~4 minutes and resumes from its saved cursor. Credit throttling (error code 30) is handled by waiting the time ShipHero asks for.
+
+| Rule | When | Severity |
+|---|---|---|
+| `SH-PO-MULTI` | More than one ShipHero PO ends with the same order number | yellow |
+| `SH-WAREHOUSE` | The login has several warehouses and none matches the account's warehouse name | yellow |
+
+Not yet: line items beyond 50 per PO, backordered-order tags (pre-order comes from product tags, per the spec).
 
 ## Layout
 

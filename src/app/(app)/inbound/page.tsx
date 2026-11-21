@@ -23,7 +23,8 @@ export default async function Inbound() {
             <ul className="divide-y divide-line text-sm">
               {list.map((p) => {
                 const skus = [...new Set(p.lines.map((l) => l.productSku))];
-                const ordered = p.lines.reduce((a, l) => a + (l.qtyOrdered ?? 0), 0);
+                const ordered = p.lines.reduce((a, l) => a + (l.qtyShiphero ?? l.qtyOrdered ?? 0), 0);
+                const received = p.lines.reduce((a, l) => a + l.qtyReceived, 0);
                 const since = stage === "issued" ? p.issuedAt : p.shippedAt ?? p.issuedAt;
                 return (
                   <li key={p.id} className="py-2">
@@ -37,14 +38,25 @@ export default async function Inbound() {
                         <span className="ml-auto flex items-center gap-2">
                           <span className="text-xs text-muted">{daysSince(since) ?? "—"}d in stage</span>
                           {p.etaAt && <Pill tone="info">ETA {fmtDate(p.etaAt)} · {p.etaSource}</Pill>}
-                          {ordered > 0 && <span className="text-xs">{p.lines.reduce((a, l) => a + l.qtyReceived, 0)}/{ordered}</span>}
+                          {ordered > 0 && (
+                            <span className="flex items-center gap-1 text-xs" title="received / ordered">
+                              <span className="h-1.5 w-16 overflow-hidden rounded bg-line">
+                                <span className="block h-full bg-emerald-600" style={{ width: `${Math.min(100, (received / ordered) * 100)}%` }} />
+                              </span>
+                              {received}/{ordered}
+                            </span>
+                          )}
                         </span>
                       </summary>
                       <div className="mt-2 grid gap-2 pl-2 text-xs sm:grid-cols-2">
                         <div>
                           <div className="text-muted">Lines</div>
                           {p.lines.map((l) => (
-                            <div key={l.id} className="font-mono">{l.variantSku ?? l.productSku} {l.qtyOrdered != null && `× ${l.qtyOrdered}`}</div>
+                            <div key={l.id} className="font-mono">
+                              {l.variantSku ?? l.productSku}{" "}
+                              {(l.qtyShiphero ?? l.qtyOrdered) != null && `${l.qtyReceived}/${l.qtyShiphero ?? l.qtyOrdered}`}
+                              {l.qtyOrdered != null && l.qtyShiphero != null && l.qtyOrdered !== l.qtyShiphero && <span className="text-amber-600"> (PDF {l.qtyOrdered})</span>}
+                            </div>
                           ))}
                           {!p.pdfJson && <div className="text-muted">{p.pdfSource ? (p.pdfError ? `PDF failed: ${p.pdfError}` : "PDF not parsed yet") : "No PO PDF found"}</div>}
                         </div>
@@ -57,6 +69,7 @@ export default async function Inbound() {
                               ))}
                             </div>
                           )}
+                          {p.receivedAt && <div><span className="text-muted">Received</span> {fmtDate(p.receivedAt)}</div>}
                           {p.productionTaskUrl && <a className="underline" href={p.productionTaskUrl} target="_blank" rel="noreferrer">Production task</a>}
                         </div>
                       </div>
