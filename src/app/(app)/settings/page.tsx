@@ -4,8 +4,9 @@ import { JOBS } from "@/lib/jobs/registry";
 import { gmailConfigured, gmailLabelsEnabled } from "@/lib/gmail/client";
 import { aiConfigured, aiModel } from "@/lib/ai/client";
 import { Button, Card, Pill, fmtDateTime } from "@/components/ui";
+import type { Prisma, ShipheroAccount } from "@prisma/client";
 import {
-  deleteShipheroAccount, deleteStore, deleteWarehouse, enableManagerStores, importStores, runJobNow,
+  assignPrefix, deleteShipheroAccount, deleteStore, deleteWarehouse, enableManagerStores, importStores, runJobNow,
   saveShipheroAccount, saveStore, saveThresholds, saveWarehouse, toggleStore,
 } from "./actions";
 
@@ -23,15 +24,27 @@ const THRESHOLD_LABELS: Record<keyof typeof DEFAULT_SETTINGS, string> = {
 };
 
 export default async function SettingsPage() {
-  const [stores, users, warehouses, accounts, settings, runs, unmatched] = await Promise.all([
-    db.store.findMany({ include: { manager: true }, orderBy: [{ enabled: "desc" }, { code: "asc" }] }),
+  const [stores, users, warehouses, accounts, settings, runs, unmatchedRaw] = await Promise.all([
+    db.store.findMany({ include: { manager: true }, orderBy: [{ enabled: "desc" }, { name: "asc" }] }),
     db.user.findMany({ orderBy: { name: "asc" } }),
     db.warehouse.findMany({ orderBy: { emailCode: "asc" } }),
     db.shipheroAccount.findMany({ orderBy: { name: "asc" } }),
     getSettings(db),
     db.syncRun.findMany({ orderBy: { startedAt: "desc" }, take: 20 }),
-    db.emailMessage.groupBy({ by: ["baseSku"], where: { status: "skipped", skipReason: "unknown_store" }, _count: true, orderBy: { _count: { baseSku: "desc" } }, take: 30 }),
+    db.emailMessage.findMany({ where: { status: "skipped", skipReason: "unknown_store" }, select: { baseSku: true } }),
   ]);
+  // Global SKUs look like FALRNR103455RD: the leading letters are the store prefix.
+  const byPrefix = new Map<string, { prefix: string; example: string; count: number }>();
+  for (const { baseSku } of unmatchedRaw) {
+    if (!baseSku) continue;
+    const prefix = baseSku.match(/^[A-Z]{2,4}/)?.[0] ?? baseSku.slice(0, 4);
+    const e = byPrefix.get(prefix) ?? { prefix, example: baseSku, count: 0 };
+    e.count++;
+    byPrefix.set(prefix, e);
+  }
+  const unmatched = [...byPrefix.values()].sort((a, b) => b.count - a.count);
+  const openStores = stores.filter((s) => !s.closed);
+  const closedStores = stores.filter((s) => s.closed);
   const managers = users.filter((u) => stores.some((s) => s.managerId === u.id));
 
   return (
@@ -52,7 +65,10 @@ export default async function SettingsPage() {
       </Card>
 
       <Card id="stores" title={`Stores (${stores.filter((s) => s.enabled).length} of ${stores.length} enabled)`}>
-        <p className="mb-3 text-sm text-muted">The code is the SKU prefix. Each store has its own ShipHero account and warehouse; its POs are matched there. Only enabled stores are processed. Turning a store on applies its already-seen emails on the next run.</p>
+        <p className="mb-3 text-sm text-muted">
+          PO emails are matched to a store by <b>Global SKU prefix</b> (e.g. FALR for Falling In Reverse), which can differ from our store code.
+          Each store has its own ShipHero account and warehouse. Only enabled stores are processed; turning one on applies its already-seen emails on the next run.
+        </p>
         {managers.length > 0 && (
           <div className="mb-3 flex flex-wrap gap-2 text-sm">
             {managers.map((m) => (
@@ -66,55 +82,48 @@ export default async function SettingsPage() {
           </div>
         )}
         <div className="divide-y divide-line">
-          {stores.map((s) => (
-            <div key={s.id} className="flex flex-wrap items-center gap-2 py-2">
-              <form action={toggleStore}>
-                <input type="hidden" name="id" value={s.id} />
-                <button title="Toggle" className={`h-5 w-9 rounded-full p-0.5 ${s.enabled ? "bg-emerald-600" : "bg-neutral-400"}`}>
-                  <span className={`block h-4 w-4 rounded-full bg-white transition ${s.enabled ? "translate-x-4" : ""}`} />
-                </button>
-              </form>
-              <form action={saveStore} className="flex flex-1 flex-wrap items-center gap-2">
-                <input type="hidden" name="id" value={s.id} />
-                <input name="code" defaultValue={s.code} className="w-20 font-mono" aria-label="Code" />
-                <input name="name" defaultValue={s.name} className="w-40" aria-label="Name" />
-                <input name="manager" defaultValue={s.manager?.email ?? s.manager?.name ?? ""} placeholder="Manager (name or email)" className="w-44" list="managers" />
-                <select name="shipheroAccountId" defaultValue={s.shipheroAccountId ?? ""} aria-label="ShipHero account">
-                  <option value="">ShipHero account…</option>
-                  {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
-                <input name="shipheroWarehouseId" defaultValue={s.shipheroWarehouseId ?? ""} placeholder="ShipHero warehouse ID" className="w-44 font-mono" />
-                <input name="asanaProjectId" defaultValue={s.asanaProjectId ?? ""} placeholder="Asana E-Comm project ID" className="w-44" />
-                <Button>Save</Button>
-              </form>
-              <form action={deleteStore}>
-                <input type="hidden" name="id" value={s.id} />
-                <Button tone="danger">Delete</Button>
-              </form>
-            </div>
-          ))}
+          {openStores.map((s) => <StoreRowView key={s.id} s={s} accounts={accounts} />)}
         </div>
+        {closedStores.length > 0 && (
+          <details className="mt-2 text-sm">
+            <summary className="cursor-pointer text-muted">Closed stores ({closedStores.length})</summary>
+            <div className="divide-y divide-line">{closedStores.map((s) => <StoreRowView key={s.id} s={s} accounts={accounts} />)}</div>
+          </details>
+        )}
         <datalist id="managers">{users.map((u) => <option key={u.id} value={u.email ?? u.name} />)}</datalist>
         <form action={saveStore} className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
-          <input name="code" placeholder="CODE" className="w-20 font-mono" required />
-          <input name="name" placeholder="Store name" className="w-40" required />
-          <input name="manager" placeholder="Manager" className="w-44" list="managers" />
+          <input name="name" placeholder="Store name" className="w-44" required />
+          <input name="code" placeholder="Our code" className="w-24 font-mono" />
+          <input name="skuPrefixes" placeholder="Global SKU prefix" className="w-36 font-mono" />
+          <input name="manager" placeholder="MF manager" className="w-36" list="managers" />
           <label className="flex items-center gap-1 text-sm"><input type="checkbox" name="enabled" /> Enabled</label>
           <Button tone="primary">Add store</Button>
         </form>
         <details className="mt-3 text-sm">
-          <summary className="cursor-pointer text-muted">Import store list (store, store_code, manager)</summary>
+          <summary className="cursor-pointer text-muted">Import store list (paste from the sheet, with headers)</summary>
           <form action={importStores} className="mt-2 space-y-2">
-            <textarea name="csv" rows={6} className="w-full font-mono text-xs" placeholder={"store,store_code,manager\nStokes Official,STOK,Troy Dang"} />
-            <Button tone="primary">Import (new stores start disabled)</Button>
+            <textarea name="csv" rows={6} className="w-full font-mono text-xs" placeholder={"Store\tStore Code\tMF Store Manager\tGlobal Store Manager\tTier\tWarehouse\tGlobal SKU Prefix"} />
+            <p className="text-xs text-muted">Matched by store code, else name. New stores start disabled; &quot;(CLOSED)&quot; stores are marked closed. Add a &quot;Global SKU Prefix&quot; column to set prefixes in bulk.</p>
+            <Button tone="primary">Import</Button>
           </form>
         </details>
         {unmatched.length > 0 && (
           <div className="mt-3 border-t border-line pt-3 text-sm">
-            <p className="text-muted">SKUs seen in PO emails with no matching store code (add the store to pick them up):</p>
-            <p className="mt-1 flex flex-wrap gap-1 font-mono text-xs">
-              {unmatched.map((u) => <span key={u.baseSku} className="rounded bg-bg px-1.5 py-0.5">{u.baseSku} ×{u._count}</span>)}
-            </p>
+            <p className="mb-2 text-muted">SKU prefixes in PO emails that don&apos;t match any store. Assign each to its store:</p>
+            <div className="space-y-1">
+              {unmatched.map((u) => (
+                <form key={u.prefix} action={assignPrefix} className="flex flex-wrap items-center gap-2">
+                  <input type="hidden" name="prefix" value={u.prefix} />
+                  <span className="w-14 font-mono font-medium">{u.prefix}</span>
+                  <span className="font-mono text-xs text-muted">{u.example} · {u.count} email{u.count > 1 ? "s" : ""}</span>
+                  <select name="storeId" defaultValue="" className="w-56">
+                    <option value="" disabled>Store…</option>
+                    {openStores.map((s) => <option key={s.id} value={s.id}>{s.name}{s.code ? ` (${s.code})` : ""}</option>)}
+                  </select>
+                  <Button>Assign</Button>
+                </form>
+              ))}
+            </div>
           </div>
         )}
       </Card>
@@ -232,5 +241,46 @@ function Conn({ ok, label, detail }: { ok: boolean; label: string; detail: strin
       <span className="font-medium">{label}</span>
       <span className="text-muted">{detail}</span>
     </li>
+  );
+}
+
+type StoreWithManager = Prisma.StoreGetPayload<{ include: { manager: true } }>;
+
+function StoreRowView({ s, accounts }: { s: StoreWithManager; accounts: ShipheroAccount[] }) {
+  return (
+    <div className="flex flex-wrap items-start gap-2 py-2">
+      <form action={toggleStore} className="pt-1">
+        <input type="hidden" name="id" value={s.id} />
+        <button title={s.enabled ? "Enabled: click to disable" : "Disabled: click to enable"} className={`h-5 w-9 rounded-full p-0.5 ${s.enabled ? "bg-emerald-600" : "bg-neutral-400"}`}>
+          <span className={`block h-4 w-4 rounded-full bg-white transition ${s.enabled ? "translate-x-4" : ""}`} />
+        </button>
+      </form>
+      <form action={saveStore} className="flex flex-1 flex-wrap items-center gap-2">
+        <input type="hidden" name="id" value={s.id} />
+        <input name="name" defaultValue={s.name} className="w-44 font-medium" aria-label="Name" />
+        <input name="code" defaultValue={s.code ?? ""} placeholder="Our code" title="Mainfactor store code" className="w-20 font-mono" />
+        <input name="skuPrefixes" defaultValue={s.skuPrefixes.join(", ")} placeholder="Global SKU prefix" title="Global's SKU prefix(es), comma separated" className={`w-36 font-mono ${s.skuPrefixes.length ? "" : "border-amber-400"}`} />
+        <input name="manager" defaultValue={s.manager?.email ?? s.manager?.name ?? ""} placeholder="MF manager" className="w-36" list="managers" />
+        <span className="flex flex-wrap gap-1 text-xs text-muted">
+          {s.closed && <Pill tone="gray">closed</Pill>}
+          {s.tier && <Pill tone="gray">Tier {s.tier}</Pill>}
+          {s.warehouseName && <span>{s.warehouseName}</span>}
+          {s.globalManager && <span>· Global: {s.globalManager}</span>}
+        </span>
+        <div className="flex w-full flex-wrap items-center gap-2">
+          <select name="shipheroAccountId" defaultValue={s.shipheroAccountId ?? ""} aria-label="ShipHero account">
+            <option value="">ShipHero account…</option>
+            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+          <input name="shipheroWarehouseId" defaultValue={s.shipheroWarehouseId ?? ""} placeholder="ShipHero warehouse ID" className="w-44 font-mono" />
+          <input name="asanaProjectId" defaultValue={s.asanaProjectId ?? ""} placeholder="Asana E-Comm project ID" className="w-44" />
+          <Button>Save</Button>
+        </div>
+      </form>
+      <form action={deleteStore}>
+        <input type="hidden" name="id" value={s.id} />
+        <Button tone="danger">Delete</Button>
+      </form>
+    </div>
   );
 }

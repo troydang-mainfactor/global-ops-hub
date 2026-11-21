@@ -1,14 +1,15 @@
 {
-  "_note": "Phase 0 seed. Store codes are the four prefixes seen in the sample PO emails; replace with Troy's real list (or paste the store managers list in Settings → Stores → Import). Warehouse ShipHero mapping is still to confirm.",
+  "_note": "Stores come from seed-stores.tsv (MF store managers sheet). Stores managed by 'enableManager' start enabled. 'skuPrefixGuesses' are Global SKU prefixes inferred from sample PO emails: CONFIRM them in Settings → Stores.",
   "manager": { "name": "Troy Dang", "email": "troy.dang@mainfactor.com" },
-  "stores": [
-    { "code": "STOK", "name": "STOK", "enabled": true },
-    { "code": "FALR", "name": "FALR", "enabled": true },
-    { "code": "MEGA", "name": "MEGA", "enabled": true },
-    { "code": "EVAN", "name": "EVAN", "enabled": true }
-  ],
+  "enableManager": "Troy",
+  "skuPrefixGuesses": {
+    "Falling In Reverse": ["FALR"],
+    "Megadeth": ["MEGA"],
+    "Evanescence": ["EVAN"],
+    "Sleep Token": ["STOK"]
+  },
   "warehouses": [
-    { "emailCode": "MAINF MI", "name": "Mainfactor (MI)", "inShiphero": true },
-    { "emailCode": "BSI UK", "name": "UK warehouse", "inShiphero": true }
+    { "emailCode": "MAINF MI", "name": "Mainfactor Michigan", "inShiphero": true },
+    { "emailCode": "BSI UK", "name": "BSI UK", "inShiphero": true }
   ]
 }

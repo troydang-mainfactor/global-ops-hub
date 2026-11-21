@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { DEFAULT_SETTINGS, setSetting, type SettingKey } from "@/lib/settings";
-import { normalizeWarehouseCode } from "@/lib/sku";
+import { normalizePrefixes, normalizeWarehouseCode } from "@/lib/sku";
+import { importStoreRows, managerIdFor } from "@/lib/store-import";
 import { runJob } from "@/lib/jobs/registry";
 import { parseStoreCsv } from "@/lib/store-csv";
 
@@ -12,32 +13,49 @@ const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 const opt = (f: FormData, k: string) => str(f, k) || null;
 const done = () => revalidatePath("/settings");
 
-async function managerId(name: string | null): Promise<string | null> {
-  if (!name) return null;
-  const isEmail = name.includes("@");
-  const existing = await db.user.findFirst({ where: isEmail ? { email: name.toLowerCase() } : { name: { equals: name, mode: "insensitive" } } });
-  if (existing) return existing.id;
-  return (await db.user.create({ data: isEmail ? { email: name.toLowerCase(), name } : { name } })).id;
+const managerId = (name: string | null) => managerIdFor(db, name);
+
+/** A Global SKU prefix may belong to one store only. */
+async function assertPrefixesFree(prefixes: string[], storeId: string | null) {
+  if (!prefixes.length) return;
+  const clash = await db.store.findFirst({ where: { skuPrefixes: { hasSome: prefixes }, ...(storeId ? { NOT: { id: storeId } } : {}) } });
+  if (clash) throw new Error(`SKU prefix already used by ${clash.name}: ${clash.skuPrefixes.filter((p) => prefixes.includes(p)).join(", ")}`);
 }
 
 // ---------- Stores
 export async function saveStore(f: FormData) {
   await requireUser();
   const id = opt(f, "id");
+  const code = str(f, "code").toUpperCase() || null;
   const data = {
     name: str(f, "name"),
-    code: str(f, "code").toUpperCase(),
+    code,
+    skuPrefixes: normalizePrefixes(str(f, "skuPrefixes")),
     managerId: await managerId(opt(f, "manager")),
     shipheroAccountId: opt(f, "shipheroAccountId"),
     shipheroWarehouseId: opt(f, "shipheroWarehouseId"),
     asanaProjectId: opt(f, "asanaProjectId"),
   };
-  if (!data.name || !/^[A-Z0-9]{2,8}$/.test(data.code)) throw new Error("Store needs a name and a 2–8 character code");
+  if (!data.name) throw new Error("Store needs a name");
+  if (code && !/^[A-Z0-9]{2,8}$/.test(code)) throw new Error("Store code must be 2–8 letters/digits");
+  await assertPrefixesFree(data.skuPrefixes, id);
   if (id) await db.store.update({ where: { id }, data });
   else await db.store.create({ data: { ...data, enabled: f.get("enabled") === "on" } });
   if (id && data.shipheroAccountId && data.shipheroWarehouseId) {
     await db.issue.updateMany({ where: { fingerprint: `ING-STORE-SHIPHERO:${id}`, status: "open" }, data: { status: "resolved", resolution: "Set in Settings" } });
   }
+  done();
+}
+
+/** From the "unmatched SKUs" list: add a Global prefix to a store. Its emails are picked up on the next run. */
+export async function assignPrefix(f: FormData) {
+  await requireUser();
+  const storeId = str(f, "storeId");
+  const [prefix] = normalizePrefixes(str(f, "prefix"));
+  if (!storeId || !prefix) return;
+  await assertPrefixesFree([prefix], storeId);
+  const s = await db.store.findUniqueOrThrow({ where: { id: storeId } });
+  await db.store.update({ where: { id: storeId }, data: { skuPrefixes: [...new Set([...s.skuPrefixes, prefix])] } });
   done();
 }
 
@@ -62,18 +80,10 @@ export async function enableManagerStores(f: FormData) {
   done();
 }
 
-/** Paste of the "MF store managers" list: store,store_code,manager (header optional). */
+/** Paste of the store managers sheet (columns matched by header). New stores start disabled. */
 export async function importStores(f: FormData) {
   await requireUser();
-  const rows = parseStoreCsv(str(f, "csv"));
-  for (const r of rows) {
-    const mid = await managerId(r.manager);
-    await db.store.upsert({
-      where: { code: r.code },
-      create: { code: r.code, name: r.name, managerId: mid, enabled: false },
-      update: { name: r.name, managerId: mid },
-    });
-  }
+  await importStoreRows(db, parseStoreCsv(str(f, "csv")));
   done();
 }
 

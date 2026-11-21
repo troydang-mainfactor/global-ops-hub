@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { baseSku, normalizeSizeLabel, skuConventionProblems, storeCodeForSku, variantSku } from "@/lib/sku";
+import { baseSku, normalizePrefixes, normalizeSizeLabel, skuConventionProblems, storeCodeForSku, storeForSku, variantSku } from "@/lib/sku";
 import { parseLooseDate, isoDate } from "@/lib/email/dates";
 
 describe("sku", () => {
@@ -17,6 +17,12 @@ describe("sku", () => {
   it("picks the longest matching store code", () => {
     expect(storeCodeForSku("STOKNR104581OT", ["STO", "STOK", "FALR"])).toBe("STOK");
     expect(storeCodeForSku("ZZZZ1", ["STOK"])).toBeNull();
+  });
+  it("finds the store by Global SKU prefix", () => {
+    const stores = [{ name: "Megadeth", skuPrefixes: ["MEGA"] }, { name: "Falling In Reverse", skuPrefixes: ["FALR"] }];
+    expect(storeForSku("MEGARX203613GR", stores)).toMatchObject({ store: { name: "Megadeth" }, prefix: "MEGA" });
+    expect(storeForSku("MEGXRX203613GR", stores)).toBeNull();
+    expect(normalizePrefixes(" falr, mega ;bad prefix!! ")).toEqual(["FALR", "MEGA", "BAD"]);
   });
   it("reports convention problems", () => {
     expect(skuConventionProblems("FALRNR103455RD_MD")).toEqual([]);

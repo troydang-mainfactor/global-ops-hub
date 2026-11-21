@@ -43,7 +43,7 @@ export default async function Today() {
             {arriving.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center gap-2 py-1.5">
                 <span className="font-mono">{p.orderNo}</span>
-                <span className="text-muted">{p.store?.code}</span>
+                <span className="text-muted">{p.store?.code ?? p.store?.name}</span>
                 <span className="font-mono text-xs">{[...new Set(p.lines.map((l) => l.productSku))].join(", ")}</span>
                 <span className="ml-auto">ETA {fmtDate(p.etaAt)} <span className="text-xs text-muted">({p.etaSource})</span></span>
               </li>

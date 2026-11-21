@@ -12,8 +12,14 @@ datasource db {
 
 model Store {
   id                String           @id @default(cuid())
-  name              String
-  code              String           @unique // SKU prefix: STOK, FALR, MEGA…
+  name              String           @unique
+  code              String?          @unique // Mainfactor store code (FNR, MEG…). Not always the SKU prefix.
+  skuPrefixes       String[] // added: Global's SKU prefixes for this store (FALR, MEGA…). Emails are matched on these.
+  globalManager     String? // added: Global store manager
+  tier              String? // added: A | B | C
+  warehouseName     String? // added: warehouse the store ships from, e.g. "Mainfactor Michigan"
+  shopifyAdminUrl   String? // added
+  closed            Boolean          @default(false) // added
   managerId         String?
   manager           User?            @relation(fields: [managerId], references: [id])
   shipheroAccountId String?

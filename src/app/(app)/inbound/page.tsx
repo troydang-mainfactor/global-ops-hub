@@ -30,7 +30,7 @@ export default async function Inbound() {
                     <details>
                       <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1">
                         <span className="font-mono font-medium">{p.orderNo}</span>
-                        <span className="text-muted">{p.store?.code}</span>
+                        <span className="text-muted">{p.store?.code ?? p.store?.name}</span>
                         <span className="font-mono text-xs">{skus.join(", ")}</span>
                         <span className="truncate">{skus.map((s) => nameOf.get(s)).filter(Boolean).join(" · ")}</span>
                         <span className="text-muted">{p.warehouseCode}</span>

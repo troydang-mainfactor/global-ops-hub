@@ -18,15 +18,16 @@ describe.skipIf(!hasTestDb)("Gmail ingest (DB)", () => {
     await resetDb(db);
     await db.store.createMany({
       data: [
-        { name: "Stokes", code: "STOK", enabled: true, shipheroAccountId: null, shipheroWarehouseId: null },
-        { name: "Falr", code: "FALR", enabled: true, shipheroWarehouseId: "V2FyZWhvdXNlOjE=" },
-        { name: "Mega", code: "MEGA", enabled: true },
-        { name: "Evan", code: "EVAN", enabled: false },
+        // Our store codes differ from Global's SKU prefixes; matching uses skuPrefixes.
+        { name: "Sleep Token", code: "SLE", skuPrefixes: ["STOK"], enabled: true, warehouseName: "Mainfactor Michigan" },
+        { name: "Falling In Reverse", code: "FNR", skuPrefixes: ["FALR"], enabled: true, shipheroWarehouseId: "V2FyZWhvdXNlOjE=", warehouseName: "Mainfactor Michigan" },
+        { name: "Megadeth", code: "MEG", skuPrefixes: ["MEGA"], enabled: true },
+        { name: "Evanescence", code: "EVN", skuPrefixes: ["EVAN"], enabled: false },
       ],
     });
-    await db.warehouse.create({ data: { emailCode: "MAINF MI" } });
+    await db.warehouse.create({ data: { emailCode: "MAINF MI", name: "Mainfactor Michigan" } });
     const acct = await db.shipheroAccount.create({ data: { name: "Main", type: "direct", tokenRef: "SHIPHERO_TOKEN_MAIN" } });
-    await db.store.update({ where: { code: "FALR" }, data: { shipheroAccountId: acct.id } });
+    await db.store.update({ where: { code: "FNR" }, data: { shipheroAccountId: acct.id } });
   });
 
   it("creates POs, lines, products and timeline events from both formats", async () => {
@@ -91,11 +92,38 @@ describe.skipIf(!hasTestDb)("Gmail ingest (DB)", () => {
     expect(s1).toMatchObject({ skippedStoreDisabled: 1, processed: 0 });
     expect(await db.purchaseOrder.count()).toBe(0);
 
-    await db.store.update({ where: { code: "EVAN" }, data: { enabled: true } });
+    await db.store.update({ where: { code: "EVN" }, data: { enabled: true } });
     const s2 = await runGmailIngest({ db, gmail, ai: null, now: () => NOW }, { mode: "incremental" });
     expect(s2).toMatchObject({ reapplied: 1, fetched: 0 });
     expect(await db.purchaseOrder.findFirst({ where: { orderNo: "PO094352" } })).toMatchObject({ stage: "issued" });
     expect((await db.emailMessage.findUniqueOrThrow({ where: { id: "m1" } })).status).toBe("processed");
+  });
+
+  it("matches on Global SKU prefix, not our store code", async () => {
+    // "MEG" is Megadeth's store code; a SKU starting MEGX is a different (unknown) Global prefix.
+    await db.store.update({ where: { code: "MEG" }, data: { skuPrefixes: ["MEGA"] } });
+    const other = { ...f.issuedStok, subject: "New Order MEGXNR100001BK/ PO090002/ MAINF MI" };
+    await runGmailIngest({ db, gmail: fakeGmail([msg("m1", other), msg("m2", f.shippedMegaComponentNoDate)]), ai: null, now: () => NOW }, { mode: "backfill" });
+    expect(await db.emailMessage.findUnique({ where: { id: "m1" } })).toMatchObject({ status: "skipped", skipReason: "unknown_store" });
+    const mega = await db.purchaseOrder.findFirstOrThrow({ where: { orderNo: "PO093125" }, include: { store: true } });
+    expect(mega.store?.name).toBe("Megadeth");
+  });
+
+  it("picks up skipped emails once their Global prefix is assigned to an enabled store", async () => {
+    const gmail = fakeGmail([msg("m1", { ...f.issuedStok, subject: "New Order BINIRX100001BK/ PO090003/ MAINF MI" })]);
+    await runGmailIngest({ db, gmail, ai: null, now: () => NOW }, { mode: "backfill" });
+    await db.store.create({ data: { name: "BINI", code: "BINI", skuPrefixes: ["BINI"], enabled: true } });
+    const s = await runGmailIngest({ db, gmail, ai: null, now: () => NOW }, { mode: "incremental" });
+    expect(s.reapplied).toBe(1);
+    expect((await db.purchaseOrder.findFirstOrThrow({ where: { orderNo: "PO090003" }, include: { store: true } })).store?.name).toBe("BINI");
+  });
+
+  it("notes when a PO goes to a different warehouse than the store's usual one", async () => {
+    await db.warehouse.create({ data: { emailCode: "BSI UK", name: "BSI UK" } });
+    await runGmailIngest({ db, gmail: fakeGmail([msg("m1", f.issuedSoUk), msg("m2", f.issuedStok)]), ai: null, now: () => NOW }, { mode: "backfill" });
+    const st = await db.store.findUniqueOrThrow({ where: { code: "SLE" } });
+    expect(await db.issue.findUnique({ where: { fingerprint: `ING-STORE-WH:${st.id}:BSI UK` } })).toMatchObject({ severity: "info" });
+    expect(await db.issue.findUnique({ where: { fingerprint: `ING-STORE-WH:${st.id}:MAINF MI` } })).toBeNull();
   });
 
   it("skips SKUs whose prefix is not in the store registry", async () => {
@@ -114,8 +142,8 @@ describe.skipIf(!hasTestDb)("Gmail ingest (DB)", () => {
 
   it("raises an issue when the store has no ShipHero account/warehouse, not when it does", async () => {
     await runGmailIngest({ db, gmail: fakeGmail([msg("m1", f.issuedStok), msg("m2", f.shippedFalr)]), ai: null, now: () => NOW }, { mode: "backfill" });
-    const stok = await db.store.findUniqueOrThrow({ where: { code: "STOK" } });
-    const falr = await db.store.findUniqueOrThrow({ where: { code: "FALR" } });
+    const stok = await db.store.findUniqueOrThrow({ where: { code: "SLE" } });
+    const falr = await db.store.findUniqueOrThrow({ where: { code: "FNR" } });
     expect(await db.issue.findUnique({ where: { fingerprint: `ING-STORE-SHIPHERO:${stok.id}` } })).toMatchObject({ severity: "yellow" });
     expect(await db.issue.findUnique({ where: { fingerprint: `ING-STORE-SHIPHERO:${falr.id}` } })).toBeNull();
   });

@@ -36,7 +36,7 @@ export function normalizeSizeLabel(size: string): string | null {
   return SIZE_ALIASES[k] ?? null;
 }
 
-/** Longest store code that the SKU starts with. Codes come from the Settings registry. */
+/** Longest prefix that the SKU starts with (Global's SKU prefixes from Settings → Stores). */
 export function storeCodeForSku(sku: string, codes: string[]): string | null {
   const s = normalizeSku(sku);
   let best: string | null = null;
@@ -66,4 +66,17 @@ export function skuConventionProblems(sku: string): string[] {
 
 export function normalizeWarehouseCode(raw: string): string {
   return raw.trim().replace(/\s+/g, " ").toUpperCase();
+}
+
+/** The store whose Global SKU prefix matches the SKU (longest prefix wins), plus the prefix that matched. */
+export function storeForSku<T extends { skuPrefixes: string[] }>(sku: string, stores: T[]): { store: T; prefix: string } | null {
+  const prefix = storeCodeForSku(sku, stores.flatMap((s) => s.skuPrefixes));
+  if (!prefix) return null;
+  const store = stores.find((s) => s.skuPrefixes.some((p) => p.toUpperCase() === prefix));
+  return store ? { store, prefix } : null;
+}
+
+export function normalizePrefixes(raw: string | string[]): string[] {
+  const list = Array.isArray(raw) ? raw : raw.split(/[\s,;]+/);
+  return [...new Set(list.map((p) => p.trim().toUpperCase()).filter((p) => /^[A-Z0-9]{2,8}$/.test(p)))];
 }

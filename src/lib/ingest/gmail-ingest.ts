@@ -8,7 +8,7 @@ import type { GmailAttachmentRef, GmailClient, GmailMessage } from "../gmail/typ
 import { gmailViewUrl } from "../gmail/client";
 import { forwardedOriginal, htmlToText, parseEmail, type ParsedEmail } from "../email/parse";
 import { parseLooseDate } from "../email/dates";
-import { baseSku, normalizeSku, normalizeWarehouseCode, storeCodeForSku, variantSku } from "../sku";
+import { baseSku, normalizeSku, normalizeWarehouseCode, storeForSku, variantSku } from "../sku";
 import { laterStage } from "../stages";
 import { raiseIssue } from "../issues";
 import { getSettings, type Settings } from "../settings";
@@ -166,8 +166,9 @@ async function processMessage(ctx: Ctx, m: GmailMessage) {
   }
 
   const stored: StoredParse = { email, attachments: m.attachments, ai: aiInfo };
-  const storeCode = storeCodeForSku(email.sku, ctx.stores.map((s) => s.code));
-  const store = storeCode ? ctx.stores.find((s) => s.code.toUpperCase() === storeCode) ?? null : null;
+  const match = storeForSku(email.sku, ctx.stores);
+  const store = match?.store ?? null;
+  const storeCode = match?.prefix ?? null;
   const skipReason = !store ? "unknown_store" : !store.enabled ? "store_disabled" : null;
 
   await db.emailMessage.upsert({
@@ -194,8 +195,9 @@ async function reapplySkipped(ctx: Ctx) {
   for (const msg of skipped) {
     const stored = msg.parsed as unknown as StoredParse | null;
     if (!stored?.email) continue;
-    const code = storeCodeForSku(stored.email.sku, ctx.stores.map((s) => s.code));
-    const store = enabled.find((s) => s.code.toUpperCase() === code);
+    const match = storeForSku(stored.email.sku, ctx.stores);
+    const store = match && match.store.enabled ? match.store : null;
+    const code = match?.prefix ?? null;
     if (!store) continue;
     try {
       await ctx.deps.db.emailMessage.update({ where: { id: msg.id }, data: { storeCode: code } });
@@ -320,16 +322,25 @@ async function checkWarehouse(ctx: Ctx, store: Store, code: string, link: string
       title: `New warehouse code "${code}" in PO emails`,
       detail: "Name it in Settings → Warehouses, or untick \"In ShipHero\" if goods there aren't tracked in ShipHero.",
       fingerprint: `ING-WAREHOUSE:${code}`,
-      evidence: { warehouseCode: code, store: store.code, gmail: link },
+      evidence: { warehouseCode: code, store: store.name, gmail: link },
+    }, ctx.now);
+  }
+  if (wh.name && store.warehouseName && wh.name.trim().toLowerCase() !== store.warehouseName.trim().toLowerCase()) {
+    await raiseIssue(db, {
+      ruleId: "ING-STORE-WH", severity: "info",
+      title: `${store.name}: PO goes to ${code} (${wh.name}), store ships from ${store.warehouseName}`,
+      detail: "The PO email names a different warehouse than the store's usual one. Fine if intended (e.g. UK stock); otherwise check the PO.",
+      fingerprint: `ING-STORE-WH:${store.id}:${code}`,
+      evidence: { store: store.name, warehouseCode: code, warehouseName: wh.name, storeWarehouse: store.warehouseName, gmail: link },
     }, ctx.now);
   }
   if (wh.inShiphero && (!store.shipheroAccountId || !store.shipheroWarehouseId)) {
     await raiseIssue(db, {
       ruleId: "ING-STORE-SHIPHERO", severity: "yellow",
-      title: `${store.code}: ShipHero ${store.shipheroAccountId ? "warehouse" : "account"} not set`,
+      title: `${store.name}: ShipHero ${store.shipheroAccountId ? "warehouse" : "account"} not set`,
       detail: "Set the store's ShipHero account and warehouse in Settings → Stores so its POs can be matched in ShipHero.",
       fingerprint: `ING-STORE-SHIPHERO:${store.id}`,
-      evidence: { store: store.code, warehouseCode: code, gmail: link },
+      evidence: { store: store.name, warehouseCode: code, gmail: link },
     }, ctx.now);
   }
 }
@@ -418,10 +429,8 @@ export async function applyPdf(
     qty.set(key, cur);
   }
 
-  const codes = ctx.stores.map((s) => s.code);
   for (const [lineKey, l] of qty) {
-    const code = storeCodeForSku(l.productSku, codes);
-    const storeId = ctx.stores.find((s) => s.code.toUpperCase() === code)?.id ?? null;
+    const storeId = storeForSku(l.productSku, ctx.stores)?.store.id ?? null;
     await db.product.upsert({ where: { sku: l.productSku }, create: { sku: l.productSku, storeId }, update: {} });
     if (l.variantSku) {
       await db.variant.upsert({ where: { sku: l.variantSku }, create: { sku: l.variantSku, productSku: l.productSku }, update: {} });
