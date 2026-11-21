@@ -33,7 +33,7 @@ export async function saveStore(f: FormData) {
     skuPrefixes: normalizePrefixes(str(f, "skuPrefixes")),
     managerId: await managerId(opt(f, "manager")),
     shipheroAccountId: opt(f, "shipheroAccountId"),
-    shipheroWarehouseId: opt(f, "shipheroWarehouseId"),
+    warehouseName: opt(f, "warehouseName"),
     asanaProjectId: opt(f, "asanaProjectId"),
   };
   if (!data.name) throw new Error("Store needs a name");
@@ -41,8 +41,8 @@ export async function saveStore(f: FormData) {
   await assertPrefixesFree(data.skuPrefixes, id);
   if (id) await db.store.update({ where: { id }, data });
   else await db.store.create({ data: { ...data, enabled: f.get("enabled") === "on" } });
-  if (id && data.shipheroAccountId && data.shipheroWarehouseId) {
-    await db.issue.updateMany({ where: { fingerprint: `ING-STORE-SHIPHERO:${id}`, status: "open" }, data: { status: "resolved", resolution: "Set in Settings" } });
+  if (id && data.warehouseName) {
+    await db.issue.updateMany({ where: { fingerprint: `ING-STORE-WAREHOUSE:${id}`, status: "open" }, data: { status: "resolved", resolution: "Set in Settings" } });
   }
   done();
 }

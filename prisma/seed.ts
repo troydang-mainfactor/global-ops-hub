@@ -14,7 +14,7 @@ async function main() {
   await db.user.upsert({ where: { email: m.email }, create: { email: m.email, name: m.name }, update: {} });
 
   const rows = parseStoreCsv(readFileSync(path.join(__dirname, "seed-stores.tsv"), "utf8"));
-  const res = await importStoreRows(db, rows, { enableManager: data.enableManager });
+  const res = await importStoreRows(db, rows, { enableManager: data.enableManager, onlyCreate: true });
 
   for (const [name, prefixes] of Object.entries(data.skuPrefixGuesses)) {
     const s = await db.store.findUnique({ where: { name } });

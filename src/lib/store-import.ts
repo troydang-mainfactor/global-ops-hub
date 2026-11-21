@@ -21,12 +21,13 @@ export async function managerIdFor(db: Db, name: string | null): Promise<string 
  * New stores start disabled (closed ones always disabled). Existing enabled flags,
  * ShipHero settings and SKU prefixes are kept unless the sheet has a prefix column.
  */
-export async function importStoreRows(db: Db, rows: StoreRow[], opts: { enableManager?: string } = {}) {
+export async function importStoreRows(db: Db, rows: StoreRow[], opts: { enableManager?: string; onlyCreate?: boolean } = {}) {
   let created = 0, updated = 0;
   for (const r of rows) {
-    const managerId = await managerIdFor(db, r.manager);
     const existing =
       (r.code ? await db.store.findUnique({ where: { code: r.code } }) : null) ?? (await db.store.findUnique({ where: { name: r.name } }));
+    if (existing && opts.onlyCreate) continue;
+    const managerId = await managerIdFor(db, r.manager);
     const enable = !r.closed && Boolean(opts.enableManager && r.manager && r.manager.toLowerCase() === opts.enableManager.toLowerCase());
     const data = {
       name: r.name, code: r.code, managerId, globalManager: r.globalManager, tier: r.tier, warehouseName: r.warehouseName,

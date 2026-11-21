@@ -67,7 +67,7 @@ curl -H "Authorization: Bearer $CRON_SECRET" https://<host>/api/jobs/gmail-inges
 
 1. Lists messages matching the Gmail search in Settings (default `label:ops-hub-inbound`) from the last N days (3 for the poll, 120 for backfill). Idempotent by Gmail message ID (`EmailMessage` table), so overlap is free.
 2. Parses subject + body with regex (`src/lib/email/parse.ts`). If the format is unknown or fields are missing, Claude fills in (`src/lib/ai/parser.ts`); low confidence raises **R17**.
-3. Matches the SKU to a store by prefix (Settings → Stores). Each store holds its ShipHero account and warehouse; the email's warehouse code is recorded and checked but doesn't decide the ShipHero account. Unknown or disabled store → message saved as `skipped`; it is applied automatically on the next run after the store is enabled (no Gmail re-fetch).
+3. Matches the SKU to a store by prefix (Settings → Stores). Matching uses Global's SKU prefix, which can differ from our store code. Each store's warehouse (Mainfactor Michigan / Philly) decides where its POs are matched in ShipHero; the email's warehouse code (`MAINF MI`, `MAINF PA`, `BSI UK`) is checked against it. Unknown or disabled store → message saved as `skipped`; it is applied automatically on the next run after the store is enabled (no Gmail re-fetch).
 4. Upserts `PurchaseOrder` (by order number + warehouse), `PoLine`, `Product`, and a timeline `Event`. Stages only move forward. Email delivery date → ETA (`etaSource = email`).
 5. Picks the PO PDF attachment and parses it with Claude into sized lines and quantities. PDF dates set the ETA only if no email date exists. Max 25 PDFs per run; 3 attempts, then an issue.
 6. If `GMAIL_APPLY_LABELS=1`, labels the Gmail message `ops-hub/processed` (or `ops-hub/unknown-format`). Off by default so access stays read-only.
@@ -76,7 +76,8 @@ Issues raised in this step:
 
 | Rule | When | Severity |
 |---|---|---|
-| `ING-STORE-SHIPHERO` | Store has no ShipHero account or warehouse set (auto-resolves when you set both) | yellow |
+| `ING-STORE-WAREHOUSE` | Store has no warehouse set (auto-resolves when you set it) | yellow |
+| `ING-STORE-WH` | PO goes to a different warehouse than the store's usual one | info |
 | `ING-WAREHOUSE` | New warehouse code seen in the emails | info |
 | `ING-WH-MISMATCH` | Shipped email subject and body name different warehouses | yellow |
 | `ING-FORMAT` | Email matches neither format (message kept) | info |

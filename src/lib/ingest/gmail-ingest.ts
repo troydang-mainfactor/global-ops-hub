@@ -309,7 +309,7 @@ async function applyParsed(
 }
 
 /**
- * ShipHero account + warehouse come from the store. Raise an issue when the store isn't set up yet,
+ * The ShipHero warehouse comes from the store's warehouse. Raise an issue when the store isn't set up yet,
  * and an FYI the first time a new warehouse code shows up in the emails.
  */
 async function checkWarehouse(ctx: Ctx, store: Store, code: string, link: string) {
@@ -334,12 +334,14 @@ async function checkWarehouse(ctx: Ctx, store: Store, code: string, link: string
       evidence: { store: store.name, warehouseCode: code, warehouseName: wh.name, storeWarehouse: store.warehouseName, gmail: link },
     }, ctx.now);
   }
-  if (wh.inShiphero && (!store.shipheroAccountId || !store.shipheroWarehouseId)) {
+  // The store's warehouse (e.g. "Mainfactor Michigan") decides where its POs are looked up in ShipHero;
+  // the ShipHero warehouse ID is resolved from that name during the ShipHero sync.
+  if (!store.warehouseName) {
     await raiseIssue(db, {
-      ruleId: "ING-STORE-SHIPHERO", severity: "yellow",
-      title: `${store.name}: ShipHero ${store.shipheroAccountId ? "warehouse" : "account"} not set`,
-      detail: "Set the store's ShipHero account and warehouse in Settings → Stores so its POs can be matched in ShipHero.",
-      fingerprint: `ING-STORE-SHIPHERO:${store.id}`,
+      ruleId: "ING-STORE-WAREHOUSE", severity: "yellow",
+      title: `${store.name}: no warehouse set`,
+      detail: "Set the store's warehouse in Settings → Stores so its POs can be matched in ShipHero.",
+      fingerprint: `ING-STORE-WAREHOUSE:${store.id}`,
       evidence: { store: store.name, warehouseCode: code, gmail: link },
     }, ctx.now);
   }

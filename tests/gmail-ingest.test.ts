@@ -140,12 +140,21 @@ describe.skipIf(!hasTestDb)("Gmail ingest (DB)", () => {
     expect(await db.issue.findUnique({ where: { fingerprint: "ING-WAREHOUSE:MAINF MI" } })).toBeNull(); // already known
   });
 
-  it("raises an issue when the store has no ShipHero account/warehouse, not when it does", async () => {
-    await runGmailIngest({ db, gmail: fakeGmail([msg("m1", f.issuedStok), msg("m2", f.shippedFalr)]), ai: null, now: () => NOW }, { mode: "backfill" });
-    const stok = await db.store.findUniqueOrThrow({ where: { code: "SLE" } });
-    const falr = await db.store.findUniqueOrThrow({ where: { code: "FNR" } });
-    expect(await db.issue.findUnique({ where: { fingerprint: `ING-STORE-SHIPHERO:${stok.id}` } })).toMatchObject({ severity: "yellow" });
-    expect(await db.issue.findUnique({ where: { fingerprint: `ING-STORE-SHIPHERO:${falr.id}` } })).toBeNull();
+  it("raises an issue only when the store has no warehouse set", async () => {
+    await runGmailIngest({ db, gmail: fakeGmail([msg("m1", f.issuedStok), msg("m2", f.shippedMegaComponentNoDate)]), ai: null, now: () => NOW }, { mode: "backfill" });
+    const sleep = await db.store.findUniqueOrThrow({ where: { code: "SLE" } });
+    const mega = await db.store.findUniqueOrThrow({ where: { code: "MEG" } });
+    expect(await db.issue.findUnique({ where: { fingerprint: `ING-STORE-WAREHOUSE:${mega.id}` } })).toMatchObject({ severity: "yellow" });
+    expect(await db.issue.findUnique({ where: { fingerprint: `ING-STORE-WAREHOUSE:${sleep.id}` } })).toBeNull();
+  });
+
+  it("knows MAINF PA is Mainfactor Philly and flags a Michigan store's PO sent there", async () => {
+    await db.warehouse.create({ data: { emailCode: "MAINF PA", name: "Mainfactor Philly" } });
+    const pa = { ...f.issuedStok, subject: "New Order STOKNR104581OT/ PO094400/ MAINF PA" };
+    await runGmailIngest({ db, gmail: fakeGmail([msg("m1", pa)]), ai: null, now: () => NOW }, { mode: "backfill" });
+    const sleep = await db.store.findUniqueOrThrow({ where: { code: "SLE" } });
+    expect(await db.issue.findUnique({ where: { fingerprint: "ING-WAREHOUSE:MAINF PA" } })).toBeNull(); // known code
+    expect(await db.issue.findUnique({ where: { fingerprint: `ING-STORE-WH:${sleep.id}:MAINF PA` } })).toMatchObject({ severity: "info" });
   });
 
   it("only searches Gmail with the configured filter", async () => {

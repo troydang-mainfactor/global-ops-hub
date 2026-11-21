@@ -67,7 +67,7 @@ export default async function SettingsPage() {
       <Card id="stores" title={`Stores (${stores.filter((s) => s.enabled).length} of ${stores.length} enabled)`}>
         <p className="mb-3 text-sm text-muted">
           PO emails are matched to a store by <b>Global SKU prefix</b> (e.g. FALR for Falling In Reverse), which can differ from our store code.
-          Each store has its own ShipHero account and warehouse. Only enabled stores are processed; turning one on applies its already-seen emails on the next run.
+          Each store&apos;s warehouse (Mainfactor Michigan / Philly) decides where its POs are matched in ShipHero. Only enabled stores are processed; turning one on applies its already-seen emails on the next run.
         </p>
         {managers.length > 0 && (
           <div className="mb-3 flex flex-wrap gap-2 text-sm">
@@ -90,6 +90,7 @@ export default async function SettingsPage() {
             <div className="divide-y divide-line">{closedStores.map((s) => <StoreRowView key={s.id} s={s} accounts={accounts} />)}</div>
           </details>
         )}
+        <datalist id="warehouse-names">{[...new Set([...warehouses.map((w) => w.name), ...stores.map((s) => s.warehouseName)].filter(Boolean))].map((n) => <option key={n!} value={n!} />)}</datalist>
         <datalist id="managers">{users.map((u) => <option key={u.id} value={u.email ?? u.name} />)}</datalist>
         <form action={saveStore} className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
           <input name="name" placeholder="Store name" className="w-44" required />
@@ -129,7 +130,7 @@ export default async function SettingsPage() {
       </Card>
 
       <Card id="warehouses" title="Warehouse codes">
-        <p className="mb-3 text-sm text-muted">Codes seen in the PO emails. The ShipHero account and warehouse are set per store (above). Untick &quot;In ShipHero&quot; for a warehouse that isn&apos;t tracked in ShipHero.</p>
+        <p className="mb-3 text-sm text-muted">Warehouse codes in the PO emails and the warehouse each one means (e.g. MAINF PA = Mainfactor Philly). Used to check a PO goes to the store&apos;s own warehouse. Untick &quot;In ShipHero&quot; for one that isn&apos;t tracked in ShipHero.</p>
         <div className="divide-y divide-line">
           {warehouses.map((w) => (
             <div key={w.id} className="flex flex-wrap items-center gap-2 py-2">
@@ -268,11 +269,11 @@ function StoreRowView({ s, accounts }: { s: StoreWithManager; accounts: Shiphero
           {s.globalManager && <span>· Global: {s.globalManager}</span>}
         </span>
         <div className="flex w-full flex-wrap items-center gap-2">
+          <input name="warehouseName" defaultValue={s.warehouseName ?? ""} placeholder="Warehouse" list="warehouse-names" className={`w-44 ${s.warehouseName ? "" : "border-amber-400"}`} title="Where the store ships from, e.g. Mainfactor Michigan" />
           <select name="shipheroAccountId" defaultValue={s.shipheroAccountId ?? ""} aria-label="ShipHero account">
             <option value="">ShipHero account…</option>
             {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
-          <input name="shipheroWarehouseId" defaultValue={s.shipheroWarehouseId ?? ""} placeholder="ShipHero warehouse ID" className="w-44 font-mono" />
           <input name="asanaProjectId" defaultValue={s.asanaProjectId ?? ""} placeholder="Asana E-Comm project ID" className="w-44" />
           <Button>Save</Button>
         </div>
