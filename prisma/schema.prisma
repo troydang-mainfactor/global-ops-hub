@@ -40,9 +40,12 @@ model Warehouse {
   inShiphero Boolean @default(true)
 }
 
+// One ShipHero login per warehouse (Mainfactor Michigan, Mainfactor Philly). A store uses the
+// account for its warehouse unless Store.shipheroAccountId overrides it.
 model ShipheroAccount {
   id                String      @id @default(cuid())
   name              String
+  warehouseName     String?     @unique // added: e.g. "Mainfactor Michigan"
   type              String // direct | 3pl
   tokenRef          String // NAME of the env var holding the refresh token, never the token
   customerAccountId String?

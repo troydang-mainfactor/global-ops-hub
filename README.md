@@ -53,6 +53,16 @@ Note: a Gmail token can technically read your whole mailbox. The app only ever s
 
 Later, to read `globalinboundupdates@` directly: switch `GMAIL_MAILBOX` and the refresh token to that mailbox (OAuth as that account), or use a service account with domain-wide delegation (scope `gmail.readonly`). Note that a service account can read every mailbox in the domain.
 
+### ShipHero tokens (one per warehouse login)
+
+Each store uses the ShipHero account for its warehouse (Settings → ShipHero accounts). Start with Michigan; Philly works the same way.
+
+1. Sign in to the **Michigan** ShipHero login. Open [app.shiphero.com/dashboard/users](https://app.shiphero.com/dashboard/users) → **+Add Third-Party Developer**. Once added, ShipHero shows a **Bearer Token** and a **Refresh Token**.
+2. Copy the **Refresh Token** into `SHIPHERO_TOKEN_MICHIGAN` on your host. The app swaps it for a short-lived access token itself (access tokens last 28 days).
+3. Settings → ShipHero accounts should show **token set** for Mainfactor Michigan.
+
+Alternative from ShipHero's docs: `POST https://public-api.shiphero.com/auth/token` with a dedicated API user's email and password returns a `refresh_token`. If MFA is on, ShipHero asks for an extra one-time-code step. Source: [developer.shiphero.com/getting-started](https://developer.shiphero.com/getting-started/).
+
 ### Scheduling
 
 `vercel.json` runs `gmail-ingest` every 5 minutes (needs a Vercel plan that allows that frequency). Anywhere else, call the endpoint from any cron:

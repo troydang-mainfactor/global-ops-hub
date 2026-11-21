@@ -20,6 +20,10 @@ async function main() {
     const s = await db.store.findUnique({ where: { name } });
     if (s && s.skuPrefixes.length === 0) await db.store.update({ where: { id: s.id }, data: { skuPrefixes: prefixes } });
   }
+  for (const a of data.shipheroAccounts) {
+    const existing = await db.shipheroAccount.findUnique({ where: { warehouseName: a.warehouseName } });
+    if (!existing) await db.shipheroAccount.create({ data: a });
+  }
   for (const w of data.warehouses) {
     await db.warehouse.upsert({ where: { emailCode: w.emailCode }, create: w, update: {} });
   }

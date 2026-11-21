@@ -35,5 +35,19 @@
       "name": "BSI UK",
       "inShiphero": true
     }
+  ],
+  "shipheroAccounts": [
+    {
+      "name": "Mainfactor Michigan",
+      "warehouseName": "Mainfactor Michigan",
+      "type": "direct",
+      "tokenRef": "SHIPHERO_TOKEN_MICHIGAN"
+    },
+    {
+      "name": "Mainfactor Philly",
+      "warehouseName": "Mainfactor Philly",
+      "type": "direct",
+      "tokenRef": "SHIPHERO_TOKEN_PHILLY"
+    }
   ]
 }

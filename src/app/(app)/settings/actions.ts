@@ -32,7 +32,6 @@ export async function saveStore(f: FormData) {
     code,
     skuPrefixes: normalizePrefixes(str(f, "skuPrefixes")),
     managerId: await managerId(opt(f, "manager")),
-    shipheroAccountId: opt(f, "shipheroAccountId"),
     warehouseName: opt(f, "warehouseName"),
     asanaProjectId: opt(f, "asanaProjectId"),
   };
@@ -116,7 +115,7 @@ export async function saveShipheroAccount(f: FormData) {
   const id = opt(f, "id");
   const tokenRef = str(f, "tokenRef").toUpperCase();
   if (!/^[A-Z][A-Z0-9_]*$/.test(tokenRef)) throw new Error("Token ref must be an env var NAME like SHIPHERO_TOKEN_MAIN, not the token");
-  const data = { name: str(f, "name"), type: str(f, "type") === "3pl" ? "3pl" : "direct", tokenRef, customerAccountId: opt(f, "customerAccountId") };
+  const data = { name: str(f, "name"), warehouseName: opt(f, "warehouseName"), type: str(f, "type") === "3pl" ? "3pl" : "direct", tokenRef, customerAccountId: opt(f, "customerAccountId") };
   if (id) await db.shipheroAccount.update({ where: { id }, data });
   else await db.shipheroAccount.create({ data });
   done();

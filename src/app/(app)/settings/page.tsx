@@ -4,6 +4,7 @@ import { JOBS } from "@/lib/jobs/registry";
 import { gmailConfigured, gmailLabelsEnabled } from "@/lib/gmail/client";
 import { aiConfigured, aiModel } from "@/lib/ai/client";
 import { Button, Card, Pill, fmtDateTime } from "@/components/ui";
+import { accountForStore, tokenSet } from "@/lib/shiphero/accounts";
 import type { Prisma, ShipheroAccount } from "@prisma/client";
 import {
   assignPrefix, deleteShipheroAccount, deleteStore, deleteWarehouse, enableManagerStores, importStores, runJobNow,
@@ -44,6 +45,7 @@ export default async function SettingsPage() {
   }
   const unmatched = [...byPrefix.values()].sort((a, b) => b.count - a.count);
   const openStores = stores.filter((s) => !s.closed);
+  const storeCount = (accountId: string) => openStores.filter((s) => accountForStore(s, accounts)?.id === accountId).length;
   const closedStores = stores.filter((s) => s.closed);
   const managers = users.filter((u) => stores.some((s) => s.managerId === u.id));
 
@@ -156,17 +158,19 @@ export default async function SettingsPage() {
       </Card>
 
       <Card id="shiphero" title="ShipHero accounts">
-        <p className="mb-3 text-sm text-muted">Store only the <b>name</b> of the env var holding each refresh token (e.g. SHIPHERO_TOKEN_MAIN). 3PL accounts also need the customer account ID.</p>
+        <p className="mb-3 text-sm text-muted">One ShipHero login per warehouse. Stores use the account for their warehouse. Store only the <b>name</b> of the env var holding the refresh token (e.g. SHIPHERO_TOKEN_MICHIGAN), never the token.</p>
         <div className="divide-y divide-line">
           {accounts.map((a) => (
             <div key={a.id} className="flex flex-wrap items-center gap-2 py-2">
               <form action={saveShipheroAccount} className="flex flex-1 flex-wrap items-center gap-2">
                 <input type="hidden" name="id" value={a.id} />
                 <input name="name" defaultValue={a.name} className="w-40" />
+                <input name="warehouseName" defaultValue={a.warehouseName ?? ""} placeholder="Warehouse" list="warehouse-names" className="w-44" />
+                <span className="text-xs text-muted">{storeCount(a.id)} stores</span>
                 <select name="type" defaultValue={a.type}><option value="direct">direct</option><option value="3pl">3pl</option></select>
                 <input name="tokenRef" defaultValue={a.tokenRef} className="w-52 font-mono" />
                 <input name="customerAccountId" defaultValue={a.customerAccountId ?? ""} placeholder="customer_account_id" className="w-40 font-mono" />
-                {process.env[a.tokenRef] ? <Pill tone="green">token set</Pill> : <Pill tone="red">env var missing</Pill>}
+                {tokenSet(a) ? <Pill tone="green">token set</Pill> : <Pill tone="gray">token not set</Pill>}
                 <Button>Save</Button>
               </form>
               <form action={deleteShipheroAccount}>
@@ -178,6 +182,7 @@ export default async function SettingsPage() {
         </div>
         <form action={saveShipheroAccount} className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
           <input name="name" placeholder="Account name" className="w-40" required />
+          <input name="warehouseName" placeholder="Warehouse" list="warehouse-names" className="w-44" />
           <select name="type"><option value="direct">direct</option><option value="3pl">3pl</option></select>
           <input name="tokenRef" placeholder="SHIPHERO_TOKEN_…" className="w-52 font-mono" required />
           <input name="customerAccountId" placeholder="customer_account_id" className="w-40 font-mono" />
@@ -270,10 +275,11 @@ function StoreRowView({ s, accounts }: { s: StoreWithManager; accounts: Shiphero
         </span>
         <div className="flex w-full flex-wrap items-center gap-2">
           <input name="warehouseName" defaultValue={s.warehouseName ?? ""} placeholder="Warehouse" list="warehouse-names" className={`w-44 ${s.warehouseName ? "" : "border-amber-400"}`} title="Where the store ships from, e.g. Mainfactor Michigan" />
-          <select name="shipheroAccountId" defaultValue={s.shipheroAccountId ?? ""} aria-label="ShipHero account">
-            <option value="">ShipHero account…</option>
-            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
+          {(() => {
+            const a = accountForStore(s, accounts);
+            if (!a) return <Pill tone="yellow">No ShipHero account for this warehouse</Pill>;
+            return <Pill tone={tokenSet(a) ? "green" : "gray"}>ShipHero: {a.name}{tokenSet(a) ? "" : " (token not set)"}</Pill>;
+          })()}
           <input name="asanaProjectId" defaultValue={s.asanaProjectId ?? ""} placeholder="Asana E-Comm project ID" className="w-44" />
           <Button>Save</Button>
         </div>
