@@ -14,11 +14,15 @@ const API = "https://gmail.googleapis.com/gmail/v1/users/me";
 
 type Auth = JWT | OAuth2Client;
 
+// Gmail OAuth can reuse the Google sign-in client (GOOGLE_CLIENT_ID/SECRET) if no separate one is set.
+const oauthClientId = () => process.env.GMAIL_OAUTH_CLIENT_ID || process.env.GOOGLE_CLIENT_ID;
+const oauthClientSecret = () => process.env.GMAIL_OAUTH_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET;
+
 export function gmailConfigured(): boolean {
   return Boolean(
     process.env.GMAIL_MAILBOX &&
       (process.env.GMAIL_SA_KEY_JSON ||
-        (process.env.GMAIL_OAUTH_CLIENT_ID && process.env.GMAIL_OAUTH_CLIENT_SECRET && process.env.GMAIL_OAUTH_REFRESH_TOKEN)),
+        (oauthClientId() && oauthClientSecret() && process.env.GMAIL_OAUTH_REFRESH_TOKEN)),
   );
 }
 
@@ -29,7 +33,7 @@ function makeAuth(mailbox: string): Auth {
     const key = JSON.parse(json) as { client_email: string; private_key: string };
     return new JWT({ email: key.client_email, key: key.private_key, scopes: scopes(), subject: mailbox });
   }
-  const c = new OAuth2Client(process.env.GMAIL_OAUTH_CLIENT_ID, process.env.GMAIL_OAUTH_CLIENT_SECRET);
+  const c = new OAuth2Client(oauthClientId(), oauthClientSecret());
   c.setCredentials({ refresh_token: process.env.GMAIL_OAUTH_REFRESH_TOKEN });
   return c;
 }
