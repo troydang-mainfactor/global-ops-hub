@@ -6,7 +6,7 @@ import type { Db } from "../db";
 import type { AiParser } from "../ai/types";
 import type { GmailAttachmentRef, GmailClient, GmailMessage } from "../gmail/types";
 import { gmailViewUrl } from "../gmail/client";
-import { forwardedOriginal, htmlToText, parseEmail, type ParsedEmail } from "../email/parse";
+import { forwardedOriginal, htmlToText, orderKindOf, parseEmail, type ParsedEmail } from "../email/parse";
 import { parseLooseDate } from "../email/dates";
 import { baseSku, normalizeSku, normalizeWarehouseCode, storeForSku, variantSku } from "../sku";
 import { laterStage } from "../stages";
@@ -500,7 +500,7 @@ function fromAi(r: Awaited<ReturnType<AiParser["parseEmail"]>>, ref: Date): Pars
   return {
     kind: r.kind as "issued" | "shipped",
     orderNo,
-    orderKind: orderNo.startsWith("SO") ? "SO" : "PO",
+    orderKind: orderKindOf(orderNo),
     sku: baseSku(skuRaw),
     skuRaw,
     componentLabel: null,

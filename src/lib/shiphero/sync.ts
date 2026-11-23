@@ -223,7 +223,7 @@ async function syncPurchaseOrders(ctx: Ctx, client: ShipheroClient, account: Shi
 
 /** The PO/SO number a ShipHero po_number ends with: "STOK - PO094330" → "PO094330". */
 export function trailingOrderNo(poNumber: string): string | null {
-  return poNumber.trim().toUpperCase().match(/(?:^|[^A-Z0-9])((?:PO|SO)\d+)$/)?.[1] ?? null;
+  return poNumber.trim().toUpperCase().match(/(?:^|[^A-Z0-9])((?:PO|SO|TO)\d+)$/)?.[1] ?? null;
 }
 
 interface ShLine { sku: string; quantity: number; quantityReceived: number; quantityRejected: number; fulfillmentStatus: string | null }

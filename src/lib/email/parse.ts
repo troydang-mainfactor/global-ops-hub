@@ -9,7 +9,7 @@ export type EmailKind = "issued" | "shipped";
 export interface ParsedEmail {
   kind: EmailKind;
   orderNo: string; // PO094330 | SO0058136
-  orderKind: "PO" | "SO";
+  orderKind: "PO" | "SO" | "TO"; // TO = transfer order
   sku: string; // base SKU
   skuRaw: string; // SKU as written (may be a variant)
   componentLabel: string | null; // "Hand Cuffs (Component)"
@@ -35,7 +35,7 @@ export type ParseResult =
   | { ok: true; data: ParsedEmail }
   | { ok: false; reason: string };
 
-const ORDER = String.raw`((?:PO|SO)\d+)`;
+const ORDER = String.raw`((?:PO|SO|TO)\d+)`;
 const PREFIX = String.raw`^\s*(?:(?:re|fwd?|fw)\s*:\s*)*`;
 
 // New Order {SKU}/ {ORDER_NO}/ {WAREHOUSE}
@@ -45,6 +45,10 @@ const SHIPPED_SUBJECT = new RegExp(`${PREFIX}${ORDER}\\s*\\/\\s*(.+?)\\s*\\/\\s*
 
 const ASANA_LINK = /Sent from Asana:\s*(https:\/\/app\.asana\.com\/\S+)/i;
 const ANY_ASANA_LINK = /(https:\/\/app\.asana\.com\/\S+\/task\/\d+\S*)/i;
+
+export function orderKindOf(orderNo: string): "PO" | "SO" | "TO" {
+  return orderNo.startsWith("SO") ? "SO" : orderNo.startsWith("TO") ? "TO" : "PO";
+}
 
 export function classifySubject(subject: string): EmailKind | null {
   if (ISSUED_SUBJECT.test(subject)) return "issued";
@@ -132,7 +136,7 @@ function parseIssued(subjectMatch: RegExpMatchArray, body: string): ParsedEmail 
   return {
     kind: "issued",
     orderNo,
-    orderKind: orderNo.startsWith("SO") ? "SO" : "PO",
+    orderKind: orderKindOf(orderNo),
     sku: baseSku(skuRaw),
     skuRaw,
     componentLabel,
@@ -181,7 +185,7 @@ function parseShipped(subjectMatch: RegExpMatchArray, body: string, ref: Date): 
   return {
     kind: "shipped",
     orderNo,
-    orderKind: orderNo.startsWith("SO") ? "SO" : "PO",
+    orderKind: orderKindOf(orderNo),
     sku: baseSku(skuRaw),
     skuRaw,
     componentLabel,

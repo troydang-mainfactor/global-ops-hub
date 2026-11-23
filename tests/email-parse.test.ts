@@ -32,6 +32,15 @@ describe("PO issued (New Order) emails", () => {
     expect(ok(f.issuedSoUk)).toMatchObject({ orderNo: "SO0058136", orderKind: "SO", warehouseCode: "BSI UK", sku: "STOKRX004233OT" });
   });
 
+  it("parses TO (transfer order) numbers", () => {
+    const d = ok({ ...f.issuedStok, subject: "New Order ICENRX103873BK / TO0008099/ MAINF MI" });
+    expect(d).toMatchObject({ orderNo: "TO0008099", orderKind: "TO", sku: "ICENRX103873BK" });
+  });
+
+  it("rejects an order number of [no value]", () => {
+    expect(parseEmail({ ...f.issuedStok, subject: "New Order CHELNR003120OT/ [no value]/ MAINF MI" }).ok).toBe(false);
+  });
+
   it("tolerates spacing differences in the subject", () => {
     const d = ok({ ...f.issuedStok, subject: "New Order  STOKNR104581OT /PO094330 /  mainf  mi " });
     expect(d).toMatchObject({ sku: "STOKNR104581OT", orderNo: "PO094330", warehouseCode: "MAINF MI" });

@@ -73,6 +73,7 @@ describe("ShipHero helpers", () => {
     expect(trailingOrderNo("stok-so0058136 ")).toBe("SO0058136");
     expect(trailingOrderNo("STOK - PO094330A")).toBeNull();
     expect(trailingOrderNo("XPO094330")).toBeNull();
+    expect(trailingOrderNo("ICEN - TO0008099")).toBe("TO0008099");
   });
   it("finds each store's warehouse by profile", () => {
     const whs = [

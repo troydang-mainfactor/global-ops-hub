@@ -1,11 +1,44 @@
 {
-  "_note": "Stores come from seed-stores.tsv (MF store managers sheet). Stores managed by 'enableManager' start enabled. 'skuPrefixGuesses' were confirmed by Troy; other prefixes are assigned from the unmatched list in Settings → Stores.",
+  "_note": "Stores come from seed-stores.tsv. Stores managed by 'enableManager' start enabled. 'skuPrefixGuesses' = Global SKU prefixes found in the PO emails (Nov 2026); unknown ones are assigned from the unmatched list in Settings → Stores.",
   "manager": {
     "name": "Troy Dang",
     "email": "troy.dang@mainfactor.com"
   },
   "enableManager": "Troy",
   "skuPrefixGuesses": {
+    "Chiodos": [
+      "CHIO"
+    ],
+    "Chelsea Wolfe": [
+      "CHEL"
+    ],
+    "Slash": [
+      "SLAS"
+    ],
+    "Dance Gavin Dance": [
+      "DANC"
+    ],
+    "Skibidi": [
+      "SKIB"
+    ],
+    "The Living Tombstone": [
+      "TLTO"
+    ],
+    "INXS": [
+      "INXS"
+    ],
+    "FKJ (French Kiwi Juice)": [
+      "FRKJ"
+    ],
+    "ICE NINE KILLS": [
+      "ICEN",
+      "ICGH",
+      "ICDD",
+      "INTR"
+    ],
+    "Sleep Token": [
+      "STOK"
+    ],
     "Falling In Reverse": [
       "FALR"
     ],
@@ -14,9 +47,6 @@
     ],
     "Evanescence": [
       "EVAN"
-    ],
-    "Sleep Token": [
-      "STOK"
     ]
   },
   "warehouses": [
