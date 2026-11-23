@@ -35,8 +35,11 @@ export type ParseResult =
   | { ok: true; data: ParsedEmail }
   | { ok: false; reason: string };
 
-const ORDER = String.raw`((?:PO|SO|TO)\d+)`;
-const PREFIX = String.raw`^\s*(?:(?:re|fwd?|fw)\s*:\s*)*`;
+// Order number, or "[no value]" (happens now and then; the PO number is then taken from the PDF).
+const ORDER = String.raw`((?:PO|SO|TO)\d+|\[\s*no value\s*\])`;
+// Re:/Fwd: and bracket tags added by mail rules, e.g. "[Shipped] " or "[New Order] " (but not "[no value]").
+const PREFIX = String.raw`^\s*(?:(?:re|fwd?|fw)\s*:\s*|\[(?!\s*no value)[^\]]{1,30}\]\s*)*`;
+const NO_VALUE = /^\[\s*no value\s*\]$/i;
 
 // New Order {SKU}/ {ORDER_NO}/ {WAREHOUSE}
 const ISSUED_SUBJECT = new RegExp(`${PREFIX}New\\s+Order\\s+(.+?)\\s*\\/\\s*${ORDER}\\s*\\/\\s*(.+?)\\s*$`, "i");
@@ -88,42 +91,9 @@ export function splitTracking(raw: string | null): string[] {
   return [...new Set(out)];
 }
 
-/**
- * Single-value fields (Delivery Date, Warehouse): the value on the heading line, or the first
- * non-empty line after it. Never reads further, so a signature below can't leak in.
- */
-function lineAfter(ls: string[], heading: string, stops: string[]): string | null {
-  const i = ls.findIndex((l) => new RegExp(`^${heading}\\s*:`, "i").test(l));
-  if (i === -1) return null;
-  const sameLine = ls[i].replace(new RegExp(`^${heading}\\s*:\\s*`, "i"), "").trim();
-  if (sameLine) return sameLine;
-  for (let j = i + 1; j < ls.length; j++) {
-    const l = ls[j];
-    if (!l) continue;
-    if (stops.some((s) => new RegExp(`^${s}\\s*:`, "i").test(l))) return null;
-    return l;
-  }
-  return null;
-}
-
-/** Value on the line(s) after a heading line like "Tracking:" up to the next heading. */
-function blockAfter(ls: string[], heading: string, stops: string[]): string | null {
-  const i = ls.findIndex((l) => new RegExp(`^${heading}\\s*:`, "i").test(l));
-  if (i === -1) return null;
-  const sameLine = ls[i].replace(new RegExp(`^${heading}\\s*:\\s*`, "i"), "").trim();
-  const vals: string[] = sameLine ? [sameLine] : [];
-  for (let j = i + 1; j < ls.length; j++) {
-    const l = ls[j];
-    if (stops.some((s) => new RegExp(`^${s}\\s*:`, "i").test(l)) || /^Sent from Asana/i.test(l)) break;
-    if (l) vals.push(l);
-  }
-  const v = vals.join(" ").trim();
-  return v || null;
-}
-
 function parseIssued(subjectMatch: RegExpMatchArray, body: string): ParsedEmail {
   const { skuRaw, componentLabel } = splitSkuAndLabel(subjectMatch[1]);
-  const orderNo = subjectMatch[2].toUpperCase();
+  const orderNo = NO_VALUE.test(subjectMatch[2]) ? "" : subjectMatch[2].toUpperCase();
   const warehouseCode = normalizeWarehouseCode(subjectMatch[3]);
   const bodySku = labelled(body, "SKU");
   const designName = labelled(body, "Design Name");
@@ -133,6 +103,7 @@ function parseIssued(subjectMatch: RegExpMatchArray, body: string): ParsedEmail 
   if (!designName) missing.push("designName");
   if (!productionTaskUrl) missing.push("productionTaskUrl");
   if (bodySku && baseSku(bodySku) !== baseSku(skuRaw)) missing.push("skuMismatch");
+  if (!orderNo) missing.push("orderNo");
   return {
     kind: "issued",
     orderNo,
@@ -153,7 +124,7 @@ function parseIssued(subjectMatch: RegExpMatchArray, body: string): ParsedEmail 
 }
 
 function parseShipped(subjectMatch: RegExpMatchArray, body: string, ref: Date): ParsedEmail {
-  const orderNo = subjectMatch[1].toUpperCase();
+  const orderNo = NO_VALUE.test(subjectMatch[1]) ? "" : subjectMatch[1].toUpperCase();
   const { skuRaw, componentLabel } = splitSkuAndLabel(subjectMatch[2]);
   const warehouseCode = normalizeWarehouseCode(subjectMatch[3]);
   const ls = lines(body);
@@ -169,9 +140,17 @@ function parseShipped(subjectMatch: RegExpMatchArray, body: string, ref: Date): 
     designName = rest.join(" ").trim() || null;
   }
 
-  const trackingRaw = blockAfter(ls, "Tracking", ["Delivery Date", "Warehouse"]);
-  const deliveryRaw = lineAfter(ls, "Delivery Date", ["Warehouse", "Tracking"]);
-  const bodyWarehouse = lineAfter(ls, "Warehouse", ["Tracking", "Delivery Date"]);
+  // Fields are read from the whole text, not line by line: some emails arrive with the
+  // signature on the same line as "Warehouse: MAINF MI", or with no line breaks at all.
+  const flat = body.replace(/\s+/g, " ");
+  if (!designName) {
+    const m = flat.match(/has shipped from the vendor\..*?documents\.?\s+(\S+)\s+(.*?)\s+Tracking\s*:/i);
+    if (m) designName = (baseSku(m[1]) === baseSku(skuRaw) ? m[2] : `${m[1]} ${m[2]}`).trim() || null;
+  }
+  const trackingRaw = flat.match(/Tracking\s*:\s*(.*?)\s*(?=Delivery Date\s*:|Warehouse\s*:|$)/i)?.[1] ?? null;
+  const deliveryField = flat.match(/Delivery Date\s*:\s*(.*?)\s*(?=Warehouse\s*:|Tracking\s*:|$)/i)?.[1] ?? null;
+  const deliveryRaw = deliveryField ? leadingDate(deliveryField) : null;
+  const bodyWarehouse = warehouseCodeFrom(flat.match(/Warehouse\s*:\s*(.*)$/i)?.[1] ?? null);
   const tracking = splitTracking(trackingRaw);
   const deliveryDate = isoDate(parseLooseDate(deliveryRaw, ref));
   const productionTaskUrl = asanaLink(body);
@@ -181,6 +160,7 @@ function parseShipped(subjectMatch: RegExpMatchArray, body: string, ref: Date): 
   if (tracking.length === 0) missing.push("tracking");
   if (deliveryRaw && !deliveryDate && !/no value/i.test(deliveryRaw)) missing.push("deliveryDate");
   if (!productionTaskUrl) missing.push("productionTaskUrl");
+  if (!orderNo) missing.push("orderNo");
 
   return {
     kind: "shipped",
@@ -195,10 +175,33 @@ function parseShipped(subjectMatch: RegExpMatchArray, body: string, ref: Date): 
     tracking,
     deliveryDate,
     deliveryDateRaw: deliveryRaw,
-    bodyWarehouseCode: bodyWarehouse ? normalizeWarehouseCode(bodyWarehouse) : null,
+    bodyWarehouseCode: bodyWarehouse,
     productionTaskUrl,
     missing,
   };
+}
+
+/** "MAINF MI Thanks Jonathan…" → "MAINF MI"; "BSI UK" → "BSI UK"; "[no value]" → null. Codes are a word plus an optional 2-letter region. */
+export function warehouseCodeFrom(raw: string | null): string | null {
+  if (!raw || /^\s*\[?\s*no value/i.test(raw)) return null;
+  const t = raw.trim().toUpperCase().split(/\s+/);
+  if (!t[0] || !/^[A-Z0-9]+$/.test(t[0])) return null;
+  return t[1] && /^[A-Z]{2}$/.test(t[1]) ? `${t[0]} ${t[1]}` : t[0];
+}
+
+/** The date at the start of a field value, ignoring anything after it (e.g. a signature). */
+export function leadingDate(raw: string): string {
+  const v = raw.trim();
+  const m = v.match(
+    /^(?:(?:mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)[a-z]*\.?,?\s+)?(\[?\s*no value\s*\]?|\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\/\d{1,2}\/\d{2,4}|[A-Za-z]{3,9}\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?|\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]{3,9}\.?(?:,?\s+\d{4})?)/i,
+  );
+  return m ? m[0] : v;
+}
+
+/** PO/SO/TO number in an attachment name such as "Purchase Order PO094330.pdf". */
+export function orderNoFromText(text: string | null | undefined): string | null {
+  const m = text?.toUpperCase().match(/(?:^|[^A-Z0-9])(PO|SO|TO)[\s#:-]?(\d{5,})(?![0-9])/);
+  return m ? `${m[1]}${m[2]}` : null;
 }
 
 export function parseEmail(input: EmailInput): ParseResult {

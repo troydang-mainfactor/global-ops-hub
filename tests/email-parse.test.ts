@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifySubject, forwardedOriginal, htmlToText, parseEmail, splitTracking } from "@/lib/email/parse";
+import { classifySubject, forwardedOriginal, htmlToText, leadingDate, orderNoFromText, parseEmail, splitTracking, warehouseCodeFrom } from "@/lib/email/parse";
 import * as f from "./fixtures/emails";
 
 function ok(input: { subject: string; body: string; receivedAt?: Date }) {
@@ -37,8 +37,15 @@ describe("PO issued (New Order) emails", () => {
     expect(d).toMatchObject({ orderNo: "TO0008099", orderKind: "TO", sku: "ICENRX103873BK" });
   });
 
-  it("rejects an order number of [no value]", () => {
-    expect(parseEmail({ ...f.issuedStok, subject: "New Order CHELNR003120OT/ [no value]/ MAINF MI" }).ok).toBe(false);
+  it("accepts an order number of [no value] and marks it missing (filled from the PDF later)", () => {
+    const d = ok({ ...f.issuedStok, subject: "New Order CHELNR003120OT/ [no value]/ MAINF MI" });
+    expect(d).toMatchObject({ orderNo: "", sku: "CHELNR003120OT", warehouseCode: "MAINF MI" });
+    expect(d.missing).toContain("orderNo");
+  });
+
+  it("reads subjects tagged by mail rules, e.g. [New Order] and [Shipped]", () => {
+    expect(ok({ ...f.issuedStok, subject: "[New Order] New Order MEGARX203055BK/ PO091013/ MAINF MI" })).toMatchObject({ orderNo: "PO091013", sku: "MEGARX203055BK" });
+    expect(ok({ ...f.shippedFalr, subject: "[Shipped] PO090081 /STOKRX104047PU / MAINF MI" })).toMatchObject({ kind: "shipped", orderNo: "PO090081", sku: "STOKRX104047PU" });
   });
 
   it("tolerates spacing differences in the subject", () => {
@@ -109,6 +116,14 @@ describe("Shipped from vendor emails", () => {
     expect(d.designName).toBe("Voices in My Head/Bad Guy");
   });
 
+  it("reads fields when the body has no line breaks and the signature runs on", () => {
+    const flat = f.shippedWithSignature.body.replace(/\n/g, " ");
+    const d = ok({ ...f.shippedWithSignature, body: flat });
+    expect(d).toMatchObject({ bodyWarehouseCode: "MAINF MI", tracking: ["1Z999AA10123456722"], deliveryDate: null, designName: "Voices in My Head/Bad Guy" });
+    const withDate = ok({ ...f.shippedFalr, body: f.shippedFalr.body.replace(/\n/g, " ").replace("MAINF MI Sent", "MAINF MI Thanks Jonathan Sent") });
+    expect(withDate).toMatchObject({ deliveryDate: "2026-12-02", bodyWarehouseCode: "MAINF MI", tracking: ["1Z999AA10123456784", "1Z999AA10123456785"] });
+  });
+
   it("flags missing tracking", () => {
     const d = ok({ ...f.shippedFalr, body: f.shippedFalr.body.replace(/1Z\S+/, "[no value]") });
     expect(d.tracking).toEqual([]);
@@ -161,5 +176,26 @@ describe("forwarded emails", () => {
   });
   it("returns null when there is no forwarded block", () => {
     expect(forwardedOriginal(f.issuedStok.body)).toBeNull();
+  });
+});
+
+describe("field helpers", () => {
+  it("extracts warehouse codes", () => {
+    expect(warehouseCodeFrom("MAINF MI THANKS JONATHAN STANLEY")).toBe("MAINF MI");
+    expect(warehouseCodeFrom("BSI UK")).toBe("BSI UK");
+    expect(warehouseCodeFrom("SPARK GA Thanks")).toBe("SPARK GA");
+    expect(warehouseCodeFrom("[no value]")).toBeNull();
+  });
+  it("takes only the date at the start", () => {
+    expect(leadingDate("Dec 2, 2026 Thanks Jonathan")).toBe("Dec 2, 2026");
+    expect(leadingDate("12/05/2026 Sent from Asana")).toBe("12/05/2026");
+    expect(leadingDate("[no value] Thanks")).toBe("[no value]");
+  });
+  it("finds order numbers in file names", () => {
+    expect(orderNoFromText("Purchase Order PO094330.pdf")).toBe("PO094330");
+    expect(orderNoFromText("TO0008099 packing.pdf")).toBe("TO0008099");
+    expect(orderNoFromText("mockup.pdf")).toBeNull();
+    expect(orderNoFromText("PO 094888")).toBe("PO094888");
+    expect(orderNoFromText("PO#094888")).toBe("PO094888");
   });
 });

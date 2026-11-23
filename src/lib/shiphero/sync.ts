@@ -241,7 +241,8 @@ async function matchPurchaseOrders(ctx: Ctx, account: ShipheroAccount, stats: Ac
   const locals = await db.purchaseOrder.findMany({ where: { storeId: { in: storeIds }, stage: { not: "closed" } } });
   const whOf = new Map(ctx.stores.map((st) => [st.id, st.shipheroWarehouseId]));
   for (const po of locals) {
-    const all = byNo.get(po.orderNo) ?? [];
+    // Cancelled ShipHero POs never count.
+    const all = (byNo.get(po.orderNo) ?? []).filter((c) => !/cancel/i.test(c.fulfillmentStatus ?? ""));
     // Prefer ShipHero POs in the store's own warehouse (one warehouse per store).
     const storeWh = po.storeId ? whOf.get(po.storeId) : null;
     const inWh = storeWh ? all.filter((c) => c.warehouseId === storeWh) : [];
@@ -260,7 +261,7 @@ async function matchPurchaseOrders(ctx: Ctx, account: ShipheroAccount, stats: Ac
       await raiseIssue(db, {
         ruleId: "SH-PO-MULTI", severity: "yellow",
         title: `${po.orderNo}: ${cands.length} ShipHero POs end with this number`,
-        detail: `Not guessing which one. ShipHero POs: ${cands.map((c) => c.poNumber).join(", ")}.`,
+        detail: `They share SKUs, so not guessing which one. ShipHero POs: ${cands.map((c) => `${c.poNumber} (${c.fulfillmentStatus ?? "no status"})`).join(", ")}. Close or cancel the extra one in ShipHero, or dismiss with a note.`,
         fingerprint: `SH-PO-MULTI:${po.id}`, poId: po.id,
         evidence: { orderNo: po.orderNo, shipheroPos: cands.map((c) => c.poNumber) },
       }, ctx.now);

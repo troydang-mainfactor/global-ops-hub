@@ -185,6 +185,27 @@ ${f.issuedStok.body}`;
     expect(await db.issue.findUnique({ where: { fingerprint: "ING-WH-MISMATCH:m1" } })).toMatchObject({ severity: "yellow" });
   });
 
+  it("takes a [no value] order number from the PDF file name", async () => {
+    const e = { ...f.issuedStok, subject: "New Order STOKNR104581OT/ [no value]/ MAINF MI" };
+    await runGmailIngest({ db, gmail: fakeGmail([msg("m1", e, pdfAtt("PO094777"))]), ai: null, now: () => NOW }, { mode: "backfill" });
+    expect(await db.purchaseOrder.findFirst({ where: { orderNo: "PO094777" } })).not.toBeNull();
+    expect(await db.emailMessage.findUnique({ where: { id: "m1" } })).toMatchObject({ status: "processed", parsedBy: "regex+pdf-name" });
+  });
+
+  it("reads a [no value] order number from inside the PDF when the file name has none", async () => {
+    const ai = fakeAi({ pdf: () => ({ po_number: "PO 094888", vendor: null, order_date: null, ex_factory_date: null, ship_date: null, delivery_date: null, lines: [], confidence: 0.9, notes: null }) });
+    const e = { ...f.issuedStok, subject: "New Order STOKNR104581OT/ [no value]/ MAINF MI" };
+    const att = [{ attachmentId: "a1", filename: "scan.pdf", mimeType: "application/pdf", size: 1 }];
+    await runGmailIngest({ db, gmail: fakeGmail([msg("m1", e, att)], { a1: Buffer.from("pdf") }), ai, now: () => NOW }, { mode: "backfill" });
+    expect(await db.purchaseOrder.findFirst({ where: { orderNo: "PO094888" } })).not.toBeNull();
+  });
+
+  it("does not duplicate timeline events for a forwarded copy of the same email", async () => {
+    const copy = { ...f.shippedFalr, subject: `[Shipped] ${f.shippedFalr.subject}` };
+    await runGmailIngest({ db, gmail: fakeGmail([msg("m1", f.shippedFalr), msg("m2", copy)]), ai: null, now: () => NOW }, { mode: "backfill" });
+    expect(await db.event.count({ where: { kind: "email_shipped" } })).toBe(1);
+  });
+
   it("keeps unknown formats and raises an info issue", async () => {
     const gmail = fakeGmail([msg("m1", f.unknownFormat)]);
     const stats = await runGmailIngest({ db, gmail, ai: null, now: () => NOW }, { mode: "backfill" });

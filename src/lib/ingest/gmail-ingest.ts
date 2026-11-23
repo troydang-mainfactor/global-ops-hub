@@ -6,7 +6,7 @@ import type { Db } from "../db";
 import type { AiParser } from "../ai/types";
 import type { GmailAttachmentRef, GmailClient, GmailMessage } from "../gmail/types";
 import { gmailViewUrl } from "../gmail/client";
-import { forwardedOriginal, htmlToText, orderKindOf, parseEmail, type ParsedEmail } from "../email/parse";
+import { forwardedOriginal, htmlToText, orderKindOf, orderNoFromText, parseEmail, type ParsedEmail } from "../email/parse";
 import { parseLooseDate } from "../email/dates";
 import { baseSku, normalizeSku, normalizeWarehouseCode, storeForSku, variantSku } from "../sku";
 import { laterStage } from "../stages";
@@ -127,7 +127,7 @@ async function processMessage(ctx: Ctx, m: GmailMessage) {
   let aiInfo: StoredParse["ai"] = null;
   let reason = regex.ok ? null : regex.reason;
 
-  const needsAi = !email || email.missing.some((f) => f !== "skuMismatch");
+  const needsAi = !email || email.missing.some((f) => f !== "skuMismatch" && f !== "orderNo");
   if (needsAi && ai) {
     ctx.stats.aiFallbacks++;
     const r = await ai.parseEmail({ subject, body });
@@ -140,6 +140,18 @@ async function processMessage(ctx: Ctx, m: GmailMessage) {
       parsedBy = "ai";
     } else {
       reason = `AI could not classify (${r.kind}, confidence ${r.confidence.toFixed(2)})`;
+    }
+  }
+
+  // "[no value]" order number: take it from the PDF's file name, else from the PDF itself.
+  if (email && !email.orderNo) {
+    const found = await orderNoFromAttachments(ctx, m);
+    if (found) {
+      email = { ...email, orderNo: found.orderNo, orderKind: orderKindOf(found.orderNo), missing: email.missing.filter((f) => f !== "orderNo") };
+      parsedBy = `${parsedBy}+${found.source}`;
+    } else {
+      reason = "No order number in the subject ([no value]) and none found in the PDF";
+      email = null;
     }
   }
 
@@ -185,6 +197,26 @@ async function processMessage(ctx: Ctx, m: GmailMessage) {
 
   await applyParsed(ctx, store!, { id: m.id, threadId: m.threadId, receivedAt }, stored, parsedBy!);
   ctx.stats.processed++;
+}
+
+async function orderNoFromAttachments(ctx: Ctx, m: GmailMessage): Promise<{ orderNo: string; source: string } | null> {
+  const pdfs = m.attachments.filter((a) => /pdf/i.test(a.mimeType) || /\.pdf$/i.test(a.filename));
+  for (const a of pdfs) {
+    const no = orderNoFromText(a.filename);
+    if (no) return { orderNo: no, source: "pdf-name" };
+  }
+  const ai = ctx.deps.ai;
+  const pdf = pdfs.find((a) => /purchase\s*order/i.test(a.filename)) ?? pdfs[0];
+  if (!ai || !pdf) return null;
+  try {
+    const buf = await ctx.deps.gmail.getAttachment(m.id, pdf.attachmentId);
+    const r = await ai.parsePoPdf(buf, { orderNo: "(unknown: read it from the document)", sku: "" });
+    const no = orderNoFromText(r.po_number ? ` ${r.po_number}` : null);
+    return no ? { orderNo: no, source: "pdf" } : null;
+  } catch (e) {
+    noteError(ctx.stats, `order number from PDF ${m.id}: ${errText(e)}`);
+    return null;
+  }
 }
 
 /** Messages skipped because their store was off (or unknown) get applied once the store is enabled. */
@@ -281,7 +313,8 @@ async function applyParsed(
     });
   }
 
-  const dedupeKey = `gmail:${msg.id}`;
+  // One event per kind + order + warehouse + SKU, so a forwarded copy of the same email doesn't duplicate it.
+  const dedupeKey = `email:${e.kind}:${e.orderNo}:${e.warehouseCode}:${e.sku}`;
   await db.event.upsert({
     where: { dedupeKey },
     create: {
