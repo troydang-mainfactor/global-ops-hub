@@ -10,7 +10,7 @@ const TABS = [
   { href: "/settings", label: "Settings" },
 ];
 
-export function Nav({ email }: { email: string }) {
+export function Nav({ email, running = [] }: { email: string; running?: string[] }) {
   const path = usePathname();
   return (
     <header className="sticky top-0 z-10 border-b border-line bg-bg/95 backdrop-blur">
@@ -26,6 +26,11 @@ export function Nav({ email }: { email: string }) {
             );
           })}
         </nav>
+        {running.length > 0 && (
+          <Link href="/settings#jobs" className="flex items-center gap-1 whitespace-nowrap rounded-full bg-sky-100 px-2 py-0.5 text-xs text-sky-800 dark:bg-sky-950 dark:text-sky-200" title={running.join(", ")}>
+            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-sky-500" /> Syncing…
+          </Link>
+        )}
         <span className="hidden text-xs text-muted sm:inline">{email}</span>
       </div>
     </header>

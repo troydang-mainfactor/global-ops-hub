@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createShipheroClient, throttleWaitMs, tokenInfo } from "@/lib/shiphero/client";
-import { tagVariants, trailingOrderNo, warehouseForStore } from "@/lib/shiphero/sync";
+import { orderKey, tagVariants, trailingOrderNo, warehouseForStore } from "@/lib/shiphero/sync";
 
 function fakeFetch(responses: Array<{ status?: number; json?: unknown }>) {
   const calls: { url: string; body: string; auth: string | null }[] = [];
@@ -75,6 +75,13 @@ describe("ShipHero helpers", () => {
     expect(trailingOrderNo("XPO094330")).toBeNull();
     expect(trailingOrderNo("ICEN - TO0008099")).toBe("TO0008099");
   });
+  it("builds tolerant order keys", () => {
+    for (const t of ["STOK - PO094330", "PO 094330", "PO94330 STOK", "PO094330", "po#094330"]) expect(orderKey(t)).toBe("PO94330");
+    expect(orderKey("STOK - PO0943301")).toBe("PO943301");
+    expect(orderKey("XPO094330")).toBeNull();
+    expect(orderKey("ICEN - TO0008099")).toBe("TO8099");
+  });
+
   it("finds each store's warehouse by profile", () => {
     const whs = [
       { id: "1", identifier: "Primary", profile: "Megadeth", active: true },

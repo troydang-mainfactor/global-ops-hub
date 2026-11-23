@@ -6,7 +6,8 @@ import { requireUser } from "@/lib/auth";
 import { DEFAULT_SETTINGS, setSetting, type SettingKey } from "@/lib/settings";
 import { normalizePrefixes, normalizeWarehouseCode } from "@/lib/sku";
 import { importStoreRows, managerIdFor } from "@/lib/store-import";
-import { runJob } from "@/lib/jobs/registry";
+import { executeRun, startJob } from "@/lib/jobs/registry";
+import { after } from "next/server";
 import { parseStoreCsv } from "@/lib/store-csv";
 
 const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
@@ -154,8 +155,11 @@ export async function saveThresholds(f: FormData) {
 }
 
 // ---------- Jobs
+/** Starts the job in the background (after the response), so the page stays usable. */
 export async function runJobNow(f: FormData) {
   await requireUser();
-  await runJob(str(f, "job"), "manual");
+  const name = str(f, "job");
+  const s = await startJob(name, "manual");
+  if (s.started) after(() => executeRun(name, s.runId).then(() => undefined));
   done();
 }

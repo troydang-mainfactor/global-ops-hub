@@ -117,6 +117,18 @@ describe.skipIf(!hasTestDb)("ShipHero sync (DB)", () => {
     ]);
   });
 
+  it("matches a closed PO when the other one with the same number is cancelled at line level", async () => {
+    const sh = fakeShiphero({ pos: [
+      { id: "A", po_number: "STOK - PO094330", status: "closed", lines: [["STOKNR104581OT_MD", 10, 10]] },
+      { id: "B", po_number: "PO094330 STOK", status: "pending", lines: [["STOKNR104581OT_MD", 120, 0]] },
+    ] });
+    await run(sh);
+    await db.shipheroPo.update({ where: { id: "B" }, data: { lines: { items: [{ sku: "STOKNR104581OT_MD", quantity: 120, quantityReceived: 0, quantityRejected: 0, fulfillmentStatus: "Canceled" }] } } });
+    const stats = await run(fakeShiphero({ pos: [] }));
+    expect(stats[0].ambiguous).toBe(0);
+    expect((await db.purchaseOrder.findUniqueOrThrow({ where: { id: po.id } })).shipheroId).toBe("A");
+  });
+
   it("ignores cancelled ShipHero POs", async () => {
     const stats = await run(fakeShiphero({ pos: [
       { id: "A", po_number: "STOK - PO094330", status: "canceled", lines: [["STOKNR104581OT_MD", 10, 0]] },

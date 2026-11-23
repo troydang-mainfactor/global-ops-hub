@@ -81,7 +81,7 @@ export async function runShipheroSync(deps: ShSyncDeps): Promise<AccountStats[]>
       await matchPurchaseOrders(ctx, account, stats);
       // Inventory per enabled store's warehouse (each store has its own warehouse/profile).
       const whIds = [...new Set(storesOf(ctx, account).filter((st) => st.enabled && st.shipheroWarehouseId).map((st) => st.shipheroWarehouseId!))];
-      stats.inventoryPassComplete = whIds.length > 0;
+      stats.inventoryPassComplete = true;
       for (const whId of whIds) {
         if (!timeLeft(ctx)) { stats.inventoryPassComplete = false; break; }
         const done = await syncInventory(ctx, client, account, whId, stats);
@@ -221,6 +221,17 @@ async function syncPurchaseOrders(ctx: Ctx, client: ShipheroClient, account: Shi
 
 // ---------------------------------------------------------------- 3. match + apply
 
+/**
+ * Matching key for an order number, tolerant of how it's written in ShipHero:
+ * "STOK - PO094330", "PO 094330", "PO94330 STOK" and "PO094330" all give "PO94330".
+ * Uses the last PO/SO/TO number in the text.
+ */
+export function orderKey(text: string | null | undefined): string | null {
+  const all = [...(text ?? "").toUpperCase().matchAll(/(?:^|[^A-Z0-9])(PO|SO|TO)[\s#:-]?0*(\d{3,})(?![0-9])/g)];
+  const m = all.at(-1);
+  return m ? `${m[1]}${m[2]}` : null;
+}
+
 /** The PO/SO number a ShipHero po_number ends with: "STOK - PO094330" → "PO094330". */
 export function trailingOrderNo(poNumber: string): string | null {
   return poNumber.trim().toUpperCase().match(/(?:^|[^A-Z0-9])((?:PO|SO|TO)\d+)$/)?.[1] ?? null;
@@ -235,14 +246,14 @@ async function matchPurchaseOrders(ctx: Ctx, account: ShipheroAccount, stats: Ac
   const shPos = await db.shipheroPo.findMany({ where: { accountId: account.id } });
   const byNo = new Map<string, typeof shPos>();
   for (const p of shPos) {
-    const no = trailingOrderNo(p.poNumber);
+    const no = orderKey(p.poNumber);
     if (no) byNo.set(no, [...(byNo.get(no) ?? []), p]);
   }
   const locals = await db.purchaseOrder.findMany({ where: { storeId: { in: storeIds }, stage: { not: "closed" } } });
   const whOf = new Map(ctx.stores.map((st) => [st.id, st.shipheroWarehouseId]));
   for (const po of locals) {
     // Cancelled ShipHero POs never count.
-    const all = (byNo.get(po.orderNo) ?? []).filter((c) => !/cancel/i.test(c.fulfillmentStatus ?? ""));
+    const all = (byNo.get(orderKey(po.orderNo) ?? po.orderNo) ?? []).filter((c) => !isCancelled(c));
     // Prefer ShipHero POs in the store's own warehouse (one warehouse per store).
     const storeWh = po.storeId ? whOf.get(po.storeId) : null;
     const inWh = storeWh ? all.filter((c) => c.warehouseId === storeWh) : [];
@@ -272,6 +283,13 @@ async function matchPurchaseOrders(ctx: Ctx, account: ShipheroAccount, stats: Ac
       stats.matched++;
     }
   }
+}
+
+/** Cancelled in ShipHero: PO status says so, or every line is cancelled. */
+function isCancelled(c: { fulfillmentStatus: string | null; lines: Prisma.JsonValue }): boolean {
+  if (/cancel/i.test(c.fulfillmentStatus ?? "")) return true;
+  const items = ((c.lines as unknown as { items?: ShLine[] })?.items ?? []);
+  return items.length > 0 && items.every((l) => /cancel/i.test(l.fulfillmentStatus ?? ""));
 }
 
 type ShPoRow = { id: string; poNumber: string; dateClosed: Date | null; fulfillmentStatus: string | null; lines: Prisma.JsonValue };

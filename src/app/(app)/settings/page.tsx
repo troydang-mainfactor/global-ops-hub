@@ -4,6 +4,8 @@ import { JOBS } from "@/lib/jobs/registry";
 import { gmailConfigured, gmailLabelsEnabled } from "@/lib/gmail/client";
 import { aiConfigured, aiModel } from "@/lib/ai/client";
 import { Button, Card, Pill, fmtDateTime } from "@/components/ui";
+import { AutoRefresh } from "@/components/auto-refresh";
+import { RunButton } from "@/components/run-button";
 import { accountForStore, tokenSet } from "@/lib/shiphero/accounts";
 import { tokenInfo } from "@/lib/shiphero/client";
 import type { Prisma, ShipheroAccount } from "@prisma/client";
@@ -24,6 +26,9 @@ const THRESHOLD_LABELS: Record<keyof typeof DEFAULT_SETTINGS, string> = {
   aiLowConfidence: "AI parse confidence below this raises R17 (0–1)",
   pdfMaxPerRun: "Max PO PDFs parsed per run",
 };
+
+// Server actions on this page (e.g. Run now) inherit this limit; background jobs run up to 5 minutes.
+export const maxDuration = 300;
 
 export default async function SettingsPage() {
   const [stores, users, warehouses, accounts, settings, runs, unmatchedRaw] = await Promise.all([
@@ -211,15 +216,18 @@ export default async function SettingsPage() {
       </Card>
 
       <Card id="jobs" title="Jobs">
+        <AutoRefresh active={runs.some((r) => r.ok === null)} />
+        <p className="mb-2 text-xs text-muted">Jobs run in the background (up to ~4 minutes each). You can leave this page; big first runs pick up where they stopped next time.</p>
         <div className="mb-3 flex flex-wrap gap-2">
           {JOBS.map((j) => {
             const missing = j.ready();
+            const running = runs.some((r) => r.job === j.name && r.ok === null);
             return (
               <form key={j.name} action={runJobNow} className="flex items-center gap-2 rounded border border-line px-2 py-1 text-sm">
                 <input type="hidden" name="job" value={j.name} />
                 <span title={j.description}>{j.title}</span>
                 <span className="text-xs text-muted">{j.schedule}</span>
-                <Button tone="primary" disabled={Boolean(missing)} title={missing ?? "Run now"}>Run now</Button>
+                <RunButton running={running} disabledReason={missing} />
               </form>
             );
           })}
@@ -229,7 +237,12 @@ export default async function SettingsPage() {
           {runs.map((r) => (
             <details key={r.id} className="py-1.5">
               <summary className="flex cursor-pointer flex-wrap items-center gap-2">
-                <Pill tone={r.ok === null ? "gray" : r.ok ? "green" : "red"}>{r.ok === null ? "running" : r.ok ? "ok" : "failed"}</Pill>
+                {(() => {
+                  const partial = r.ok && (r.stats as { incomplete?: boolean } | null)?.incomplete === true;
+                  if (r.ok === null) return <Pill tone="info">running…</Pill>;
+                  if (!r.ok) return <Pill tone="red">failed</Pill>;
+                  return partial ? <Pill tone="yellow">partly done · run again</Pill> : <Pill tone="green">done</Pill>;
+                })()}
                 <span className="font-medium">{r.job}</span>
                 <span className="text-muted">{fmtDateTime(r.startedAt)}</span>
                 {r.finishedAt && <span className="text-muted">{((r.finishedAt.getTime() - r.startedAt.getTime()) / 1000).toFixed(1)}s</span>}

@@ -20,7 +20,7 @@ async function handle(req: Request, { params }: { params: Promise<{ job: string 
   if (!isCron && !(await currentUserEmail())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!getJob(job)) return NextResponse.json({ error: "unknown job" }, { status: 404 });
   const result = await runJob(job, isCron ? "cron" : "manual");
-  return NextResponse.json(result, { status: "ok" in result && result.ok === false ? 500 : 200 });
+  return NextResponse.json(result, { status: !result.skipped && result.ok === false ? 500 : 200 });
 }
 
 export { handle as GET, handle as POST };

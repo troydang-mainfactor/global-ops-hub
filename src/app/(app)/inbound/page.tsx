@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { STAGES, STAGE_LABEL, type Stage } from "@/lib/stages";
 import { Card, Pill, daysSince, fmtDate } from "@/components/ui";
 import { trackingUrl } from "@/lib/tracking";
+import { accountForStore, tokenSet } from "@/lib/shiphero/accounts";
 
 // Basic list so ingest results can be checked now. The full Inbound screen (§8.2) comes in Phase 1 step 3.
 export default async function Inbound() {
@@ -12,6 +13,26 @@ export default async function Inbound() {
   });
   const names = await db.product.findMany({ where: { sku: { in: [...new Set(pos.flatMap((p) => p.lines.map((l) => l.productSku)))] } }, select: { sku: true, name: true } });
   const nameOf = new Map(names.map((n) => [n.sku, n.name]));
+
+  // For POs not matched in ShipHero: which login was searched, and ShipHero POs with a similar number.
+  const accounts = await db.shipheroAccount.findMany();
+  const unmatched = pos.filter((p) => !p.shipheroId);
+  const shPos = unmatched.length
+    ? await db.shipheroPo.findMany({ select: { poNumber: true, accountId: true, fulfillmentStatus: true } })
+    : [];
+  const lastSync = await db.syncRun.findFirst({ where: { job: "shiphero-sync", ok: true }, orderBy: { startedAt: "desc" } });
+  const digits = (s: string) => s.replace(/\D/g, "").replace(/^0+/, "");
+  const whyUnmatched = (p: (typeof pos)[number]) => {
+    const acct = p.store ? accountForStore(p.store, accounts) : null;
+    if (!acct) return `No ShipHero login for ${p.store?.warehouseName ?? "this store's warehouse"}`;
+    if (!tokenSet(acct)) return `${acct.name} ShipHero login not connected yet (token not set)`;
+    const want = digits(p.orderNo);
+    const similar = shPos.filter((s) => s.accountId === acct.id && want.length >= 4 && digits(s.poNumber).includes(want)).slice(0, 3);
+    const searched = `Searched ${acct.name} (${shPos.filter((s) => s.accountId === acct.id).length} POs from the last ${lastSync ? `sync ${fmtDate(lastSync.startedAt)}` : "sync: none yet"})`;
+    return similar.length
+      ? `${searched}. Similar: ${similar.map((s) => `${s.poNumber} (${s.fulfillmentStatus ?? "?"})`).join(", ")}`
+      : `${searched}. None with ${p.orderNo} yet`;
+  };
 
   return (
     <div className="space-y-4">
@@ -75,7 +96,7 @@ export default async function Inbound() {
                             <span className="text-muted">ShipHero</span>{" "}
                             {p.shipheroId
                               ? `matched${p.shipheroId.includes(",") ? ` (${p.shipheroId.split(",").length} POs, one per SKU)` : ""}`
-                              : <span className="text-amber-600">no ShipHero PO ending in {p.orderNo} found yet</span>}
+                              : <span className="text-amber-600">not matched. {whyUnmatched(p)}</span>}
                           </div>
                           {p.productionTaskUrl && <a className="underline" href={p.productionTaskUrl} target="_blank" rel="noreferrer">Production task</a>}
                         </div>

@@ -22,6 +22,7 @@ export interface IngestDeps {
   gmail: GmailClient;
   ai: AiParser | null; // null = Claude not configured: regex only, PDFs wait
   now?: () => Date;
+  budgetMs?: number; // stop starting new work after this long; the next run continues
 }
 
 export interface IngestStats {
@@ -39,6 +40,7 @@ export interface IngestStats {
   pdfFailed: number;
   pdfPending: number;
   errorSamples: string[];
+  incomplete: boolean; // stopped at the time budget: run again to continue
 }
 
 /** What we keep per message in EmailMessage.parsed, so skipped messages can be re-applied without Gmail. */
@@ -49,6 +51,7 @@ interface StoredParse {
 }
 
 type Ctx = {
+  deadline: number;
   deps: IngestDeps;
   settings: Settings;
   stores: Store[];
@@ -59,7 +62,7 @@ type Ctx = {
 function emptyStats(): IngestStats {
   return {
     listed: 0, alreadySeen: 0, fetched: 0, processed: 0, reapplied: 0, skippedUnknownStore: 0, skippedStoreDisabled: 0,
-    unknownFormat: 0, aiFallbacks: 0, errors: 0, pdfParsed: 0, pdfFailed: 0, pdfPending: 0, errorSamples: [],
+    unknownFormat: 0, aiFallbacks: 0, errors: 0, pdfParsed: 0, pdfFailed: 0, pdfPending: 0, errorSamples: [], incomplete: false,
   };
 }
 
@@ -70,7 +73,7 @@ function noteError(stats: IngestStats, msg: string) {
 
 export async function runGmailIngest(deps: IngestDeps, opts: { mode: "incremental" | "backfill" }): Promise<IngestStats> {
   const now = deps.now?.() ?? new Date();
-  const ctx: Ctx = { deps, settings: await getSettings(deps.db), stores: await deps.db.store.findMany(), stats: emptyStats(), now };
+  const ctx: Ctx = { deadline: Date.now() + (deps.budgetMs ?? Number.POSITIVE_INFINITY), deps, settings: await getSettings(deps.db), stores: await deps.db.store.findMany(), stats: emptyStats(), now };
 
   await reapplySkipped(ctx);
 
@@ -88,6 +91,11 @@ export async function runGmailIngest(deps: IngestDeps, opts: { mode: "incrementa
 
   const messages: GmailMessage[] = [];
   for (const batch of chunk(todo, 5)) {
+    // Leave time to process what was fetched; the rest is picked up by the next run.
+    if (Date.now() > ctx.deadline - 60_000) {
+      ctx.stats.incomplete = true;
+      break;
+    }
     const got = await Promise.allSettled(batch.map((id) => deps.gmail.getMessage(id)));
     got.forEach((g, i) => (g.status === "fulfilled" ? messages.push(g.value) : noteError(ctx.stats, `fetch ${batch[i]}: ${String(g.reason)}`)));
   }
@@ -95,6 +103,10 @@ export async function runGmailIngest(deps: IngestDeps, opts: { mode: "incrementa
   messages.sort((a, b) => a.internalDate.getTime() - b.internalDate.getTime()); // oldest first so the timeline reads in order
 
   for (const m of messages) {
+    if (Date.now() > ctx.deadline) {
+      ctx.stats.incomplete = true;
+      break;
+    }
     try {
       await processMessage(ctx, m);
     } catch (e) {
@@ -410,6 +422,10 @@ async function parsePendingPdfs(ctx: Ctx) {
   }
   const pending = await db.purchaseOrder.findMany({ where, orderBy: { issuedAt: "desc" }, take: ctx.settings.pdfMaxPerRun, include: { lines: true } });
   for (const po of pending) {
+    if (Date.now() > ctx.deadline) {
+      ctx.stats.incomplete = true;
+      break;
+    }
     const src = po.pdfSource as { messageId: string; attachmentId: string; filename: string };
     try {
       const pdf = await gmail.getAttachment(src.messageId, src.attachmentId);
