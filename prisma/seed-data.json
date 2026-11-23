@@ -34,7 +34,9 @@
       "ICEN",
       "ICGH",
       "ICDD",
-      "INTR"
+      "INTR",
+      "ICRN",
+      "INED"
     ],
     "Sleep Token": [
       "STOK"
@@ -47,6 +49,9 @@
     ],
     "Evanescence": [
       "EVAN"
+    ],
+    "Spiritbox": [
+      "SPRT"
     ]
   },
   "warehouses": [
