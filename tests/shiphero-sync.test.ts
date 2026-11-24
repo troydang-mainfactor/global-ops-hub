@@ -7,7 +7,7 @@ const NOW = new Date("2026-11-21T12:00:00Z");
 
 interface FakeData {
   warehouses?: { id: string; identifier: string; profile: string | null; active: boolean }[];
-  pos?: Array<{ id: string; po_number: string; status?: string; date_closed?: string | null; lines: [string, number, number][] }>;
+  pos?: Array<{ id: string; po_number: string; status?: string; date_closed?: string | null; lines: [string, number, number][]; lineUpdatedAt?: string }>;
   wps?: Array<{ sku: string; on_hand: number; available: number; allocated: number; backorder: number; name?: string }>;
   tagged?: Array<{ sku: string; tags: string[] }>;
 }
@@ -23,7 +23,7 @@ function fakeShiphero(d: FakeData) {
       if (q.includes("purchase_orders(")) {
         return { purchase_orders: page((d.pos ?? []).map((p) => ({
           id: p.id, legacy_id: 123, po_number: p.po_number, warehouse_id: "WH1", fulfillment_status: p.status ?? "pending", po_date: null, date_closed: p.date_closed ?? null,
-          line_items: { edges: p.lines.map(([sku, quantity, quantity_received]) => ({ node: { sku, quantity, quantity_received, quantity_rejected: 0, fulfillment_status: "pending" } })) },
+          line_items: { edges: p.lines.map(([sku, quantity, quantity_received]) => ({ node: { sku, quantity, quantity_received, quantity_rejected: 0, fulfillment_status: "pending", updated_at: p.lineUpdatedAt ?? null } })) },
         }))) } as T;
       }
       if (q.includes("warehouse_products(")) {
@@ -154,6 +154,11 @@ describe.skipIf(!hasTestDb)("ShipHero sync (DB)", () => {
     expect(await db.issue.findUnique({ where: { fingerprint: `R18:${po.id}` } })).toMatchObject({ status: "open" });
     await runShipheroSync({ db, now: () => later, clientFor: (a) => (a.id === "mi" ? fakeShiphero({ pos: [{ id: "A", po_number: "STOK - PO094330", lines: [["STOKNR104581OT_MD", 120, 120]] }] }) : null) });
     expect(await db.issue.findUnique({ where: { fingerprint: `R18:${po.id}` } })).toMatchObject({ status: "resolved" });
+  });
+
+  it("flags an already-stalled partial receipt on the first sync, using ShipHero's line dates", async () => {
+    await run(fakeShiphero({ pos: [{ id: "A", po_number: "STOK - PO094330", lineUpdatedAt: "2026-11-10T00:00:00Z", lines: [["STOKNR104581OT_MD", 120, 60]] }] }));
+    expect(await db.issue.findUnique({ where: { fingerprint: `R18:${po.id}` } })).toMatchObject({ ruleId: "R18", status: "open" });
   });
 
   it("flags a PO whose product isn't in ShipHero yet (R19), once inventory has been read", async () => {

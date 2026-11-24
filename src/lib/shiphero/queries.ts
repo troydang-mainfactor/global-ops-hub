@@ -28,7 +28,7 @@ export const purchaseOrders = (updatedFrom: string, cursor: string | null) => `q
       pageInfo { hasNextPage endCursor }
       edges { node {
         id legacy_id po_number warehouse_id fulfillment_status po_date date_closed
-        line_items(first: ${PO_LINES}) { edges { node { sku quantity quantity_received quantity_rejected fulfillment_status } } }
+        line_items(first: ${PO_LINES}) { edges { node { sku quantity quantity_received quantity_rejected fulfillment_status updated_at } } }
       } }
     }
   }
@@ -41,7 +41,7 @@ export interface ShPoNode {
   fulfillment_status: string | null;
   po_date: string | null;
   date_closed: string | null;
-  line_items: { edges: { node: { sku: string; quantity: number | null; quantity_received: number | null; quantity_rejected: number | null; fulfillment_status: string | null } }[] };
+  line_items: { edges: { node: { sku: string; quantity: number | null; quantity_received: number | null; quantity_rejected: number | null; fulfillment_status: string | null; updated_at?: string | null } }[] };
 }
 export interface PurchaseOrdersData { purchase_orders: Result<Conn<ShPoNode>> }
 

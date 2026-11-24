@@ -200,7 +200,7 @@ async function syncPurchaseOrders(ctx: Ctx, client: ShipheroClient, account: Shi
     stats.poPages++;
     for (const { node } of conn.edges) {
       const lines = node.line_items.edges.map(({ node: l }) => ({
-        sku: l.sku, quantity: l.quantity ?? 0, quantityReceived: l.quantity_received ?? 0, quantityRejected: l.quantity_rejected ?? 0, fulfillmentStatus: l.fulfillment_status,
+        sku: l.sku, quantity: l.quantity ?? 0, quantityReceived: l.quantity_received ?? 0, quantityRejected: l.quantity_rejected ?? 0, fulfillmentStatus: l.fulfillment_status, updatedAt: l.updated_at ?? null,
       }));
       const data = {
         accountId: account.id, poNumber: node.po_number, warehouseId: node.warehouse_id, fulfillmentStatus: node.fulfillment_status,
@@ -239,7 +239,7 @@ export function trailingOrderNo(poNumber: string): string | null {
   return poNumber.trim().toUpperCase().match(/(?:^|[^A-Z0-9])((?:PO|SO|TO)\d+)$/)?.[1] ?? null;
 }
 
-interface ShLine { sku: string; quantity: number; quantityReceived: number; quantityRejected: number; fulfillmentStatus: string | null }
+interface ShLine { sku: string; quantity: number; quantityReceived: number; quantityRejected: number; fulfillmentStatus: string | null; updatedAt?: string | null }
 
 async function matchPurchaseOrders(ctx: Ctx, account: ShipheroAccount, stats: AccountStats) {
   const { db } = ctx;
@@ -378,7 +378,12 @@ async function applyShipheroPo(ctx: Ctx, po: PurchaseOrder, sh: ShPoRow, stats: 
   const shStage = total > 0 && rec >= total ? "received" : rec > 0 ? "receiving" : "in_shiphero";
   const stage = laterStage(po.stage, shStage);
   const data: Prisma.PurchaseOrderUpdateInput = { stage, shipheroId: sh.id, shipheroClosedAt: sh.dateClosed };
-  if (po.receivedQty !== rec) Object.assign(data, { receivedQty: rec, receivedChangedAt: ctx.now });
+  if (po.receivedQty !== rec) {
+    // First time we see this PO: the stall timer starts when ShipHero last changed a line, not now.
+    const lastLineChange = (raw.items ?? []).map((l) => (l.updatedAt ? new Date(l.updatedAt).getTime() : NaN)).filter((t) => !Number.isNaN(t));
+    const since = po.receivedQty == null && lastLineChange.length ? new Date(Math.max(...lastLineChange)) : ctx.now;
+    Object.assign(data, { receivedQty: rec, receivedChangedAt: since });
+  }
   if (stage === "received" && !po.receivedAt) data.receivedAt = sh.dateClosed ?? ctx.now;
   await db.purchaseOrder.update({ where: { id: po.id }, data });
 
