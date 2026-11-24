@@ -102,6 +102,9 @@ model PurchaseOrder {
   pdfSource         Json? // added: {messageId, attachmentId, filename} of the PO PDF to parse
   pdfAttempts       Int       @default(0) // added
   pdfError          String? // added
+  receivedQty       Int? // added: total received in ShipHero at the last sync
+  receivedChangedAt DateTime? // added: when the received total last changed (stalled receiving check)
+  shipheroClosedAt  DateTime? // added: ShipHero closed the PO (all matched ShipHero POs closed)
   lines             PoLine[]
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt

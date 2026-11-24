@@ -311,6 +311,16 @@ Still to confirm in Phase 0: which ShipHero account each warehouse belongs to, a
 
 ---
 
+## 10b. Confirmed with Troy after go-live (Nov 2026)
+
+1. **Launch readiness (Phase 2, required):** once Asana is connected, every launch card is checked against its SKUs' receiving: is each SKU **received in full in the PO, or in inventory (on hand), by the launch date**? Partial receipts count as **not ready** for the missing sizes/quantities. Example that must be caught: `MEGARX003551BK` got stuck with only part of the shipment received.
+2. **Short shipments (R18, built):** PO part-received and then no change for N days (default 3), or ShipHero closed the PO before everything arrived → red issue listing the missing SKUs/quantities.
+3. **Product missing in ShipHero (R19, built):** a PO whose SKU has no product in the store's ShipHero warehouse → "create the product in ShipHero" (the PO can't be received otherwise).
+4. **Warehouses:** one ShipHero login per warehouse (Michigan, Philly); inside a login each store has its own warehouse, matched by **profile** name.
+5. **Global splits one PO into one ShipHero PO per SKU**; those are combined. Same-SKU duplicates: use the one that received stock, else the one still open, else raise an issue.
+6. **Email quirks:** `[no value]` order numbers (take it from the PDF name or the PDF), `TO…` transfer orders, `[Shipped]`/`[New Order]` tagged subjects, signatures on the warehouse line.
+7. INXS POs go to Michigan on purpose: don't flag.
+
 ## 11. Reference files
 
 - `reference/po-email-formats.md`: both email formats, examples, parsing approach

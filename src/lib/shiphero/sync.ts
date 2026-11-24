@@ -15,6 +15,7 @@ import { baseSku, normalizeSku, storeForSku } from "../sku";
 import { laterStage } from "../stages";
 import { raiseIssue } from "../issues";
 import { getSettings, type Settings } from "../settings";
+import { runInboundRules } from "../rules/inbound";
 
 export interface ShSyncDeps {
   db: Db;
@@ -92,6 +93,7 @@ export async function runShipheroSync(deps: ShSyncDeps): Promise<AccountStats[]>
       stats.error = e instanceof Error ? e.message : String(e);
     }
   }
+  await runInboundRules(deps.db, now);
   const failed = out.filter((s) => s.error);
   if (failed.length && failed.length === out.filter((s) => !s.skipped).length) {
     throw new Error(failed.map((f) => `${f.account}: ${f.error}`).join("; "));
@@ -260,6 +262,15 @@ async function matchPurchaseOrders(ctx: Ctx, account: ShipheroAccount, stats: Ac
     const cands = inWh.length ? inWh : all;
     // Global often splits one PO into a ShipHero PO per SKU ("FALR… - PO094108" ×6).
     // Those cover different SKUs, so combine them. Overlapping SKUs = real duplicates: don't guess.
+    // Duplicates with the same SKUs (e.g. one cancelled, one closed): prefer the one that actually
+    // received stock, else the only one still open.
+    const picked = cands.length > 1 ? pickDuplicate(cands) : null;
+    if (picked) {
+      await applyShipheroPo(ctx, po, picked, stats);
+      await db.issue.updateMany({ where: { fingerprint: `SH-PO-MULTI:${po.id}`, status: "open" }, data: { status: "resolved", resolution: `Used ${picked.poNumber} (received stock / still open)` } });
+      stats.matched++;
+      continue;
+    }
     const merged = cands.length > 1 ? mergeSplitPos(cands) : null;
     if (merged) {
       await applyShipheroPo(ctx, po, merged, stats);
@@ -283,6 +294,21 @@ async function matchPurchaseOrders(ctx: Ctx, account: ShipheroAccount, stats: Ac
       stats.matched++;
     }
   }
+}
+
+const receivedOf = (c: ShPoRow) => ((c.lines as unknown as { items?: ShLine[] })?.items ?? []).reduce((a, l) => a + (l.quantityReceived ?? 0), 0);
+const skusOf = (c: ShPoRow) => new Set(((c.lines as unknown as { items?: ShLine[] })?.items ?? []).filter((l) => l.sku).map((l) => normalizeSku(l.sku)));
+
+/** Among ShipHero POs that share SKUs (true duplicates), the one to use, or null to raise an issue. */
+export function pickDuplicate(cands: ShPoRow[]): ShPoRow | null {
+  const sets = cands.map(skusOf);
+  const overlap = sets.some((a, i) => sets.some((b, j) => j > i && [...a].some((x) => b.has(x))));
+  if (!overlap) return null; // split by SKU: combine instead
+  const withStock = cands.filter((c) => receivedOf(c) > 0);
+  if (withStock.length === 1) return withStock[0];
+  const open = cands.filter((c) => !c.dateClosed && !/closed|cancel/i.test(c.fulfillmentStatus ?? ""));
+  if (open.length === 1) return open[0];
+  return null;
 }
 
 /** Cancelled in ShipHero: PO status says so, or every line is cancelled. */
@@ -351,7 +377,8 @@ async function applyShipheroPo(ctx: Ctx, po: PurchaseOrder, sh: ShPoRow, stats: 
   // Progress is judged on quantities, not status text (API and UI statuses can differ).
   const shStage = total > 0 && rec >= total ? "received" : rec > 0 ? "receiving" : "in_shiphero";
   const stage = laterStage(po.stage, shStage);
-  const data: Prisma.PurchaseOrderUpdateInput = { stage, shipheroId: sh.id };
+  const data: Prisma.PurchaseOrderUpdateInput = { stage, shipheroId: sh.id, shipheroClosedAt: sh.dateClosed };
+  if (po.receivedQty !== rec) Object.assign(data, { receivedQty: rec, receivedChangedAt: ctx.now });
   if (stage === "received" && !po.receivedAt) data.receivedAt = sh.dateClosed ?? ctx.now;
   await db.purchaseOrder.update({ where: { id: po.id }, data });
 

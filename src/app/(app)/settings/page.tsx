@@ -17,6 +17,7 @@ import {
 const THRESHOLD_LABELS: Record<keyof typeof DEFAULT_SETTINGS, string> = {
   receivingBufferDays: "Receiving buffer (days, delivery → sellable)",
   shippedNotReceivedDays: "R04: shipped and not received after (days)",
+  partialReceiptStallDays: "R18: part received, no change for (days)",
   issuedNoShipheroHours: "R01: issued with no ShipHero PO after (hours)",
   launchWindowDays: "Launch window (days)",
   preorderTags: "Pre-order product tags (comma separated)",

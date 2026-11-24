@@ -129,6 +129,40 @@ describe.skipIf(!hasTestDb)("ShipHero sync (DB)", () => {
     expect((await db.purchaseOrder.findUniqueOrThrow({ where: { id: po.id } })).shipheroId).toBe("A");
   });
 
+  it("picks the duplicate that received stock (e.g. one cancelled-as-closed, one closed)", async () => {
+    const stats = await run(fakeShiphero({ pos: [
+      { id: "A", po_number: "STOK - PO094330", status: "closed", date_closed: "2026-11-01T00:00:00Z", lines: [["STOKNR104581OT_MD", 120, 0]] },
+      { id: "B", po_number: "STOK - PO094330", status: "closed", date_closed: "2026-11-10T00:00:00Z", lines: [["STOKNR104581OT_MD", 120, 118]] },
+    ] }));
+    expect(stats[0].ambiguous).toBe(0);
+    expect((await db.purchaseOrder.findUniqueOrThrow({ where: { id: po.id } })).shipheroId).toBe("B");
+  });
+
+  it("flags a short shipment when ShipHero closed the PO before everything arrived (R18)", async () => {
+    await run(fakeShiphero({ pos: [{ id: "A", po_number: "STOK - PO094330", status: "closed", date_closed: "2026-11-20T00:00:00Z", lines: [["STOKNR104581OT_MD", 120, 100], ["STOKNR104581OT_LG", 80, 80]] }] }));
+    const issue = await db.issue.findUniqueOrThrow({ where: { fingerprint: `R18:${po.id}` } });
+    expect(issue).toMatchObject({ severity: "red", ruleId: "R18" });
+    expect(issue.title).toContain("closed short 180 of 200");
+    expect(issue.detail).toContain("STOKNR104581OT_MD 100/120");
+  });
+
+  it("flags receiving that stalled part way (R18) and clears it when the rest arrives", async () => {
+    await run(fakeShiphero({ pos: [{ id: "A", po_number: "STOK - PO094330", lines: [["STOKNR104581OT_MD", 120, 60]] }] }));
+    expect(await db.issue.findUnique({ where: { fingerprint: `R18:${po.id}` } })).toBeNull(); // just started
+    const later = new Date(NOW.getTime() + 4 * 86400000);
+    await runShipheroSync({ db, now: () => later, clientFor: (a) => (a.id === "mi" ? fakeShiphero({ pos: [] }) : null) });
+    expect(await db.issue.findUnique({ where: { fingerprint: `R18:${po.id}` } })).toMatchObject({ status: "open" });
+    await runShipheroSync({ db, now: () => later, clientFor: (a) => (a.id === "mi" ? fakeShiphero({ pos: [{ id: "A", po_number: "STOK - PO094330", lines: [["STOKNR104581OT_MD", 120, 120]] }] }) : null) });
+    expect(await db.issue.findUnique({ where: { fingerprint: `R18:${po.id}` } })).toMatchObject({ status: "resolved" });
+  });
+
+  it("flags a PO whose product isn't in ShipHero yet (R19), once inventory has been read", async () => {
+    await run(fakeShiphero({ wps: [{ sku: "OTHERSKU_MD", on_hand: 1, available: 1, allocated: 0, backorder: 0 }] }));
+    expect(await db.issue.findUnique({ where: { fingerprint: `R19:${po.id}:STOKNR104581OT` } })).toMatchObject({ severity: "yellow", status: "open" });
+    await run(fakeShiphero({ wps: [{ sku: "STOKNR104581OT_MD", on_hand: 0, available: 0, allocated: 0, backorder: 0 }] }));
+    expect(await db.issue.findUnique({ where: { fingerprint: `R19:${po.id}:STOKNR104581OT` } })).toMatchObject({ status: "resolved" });
+  });
+
   it("ignores cancelled ShipHero POs", async () => {
     const stats = await run(fakeShiphero({ pos: [
       { id: "A", po_number: "STOK - PO094330", status: "canceled", lines: [["STOKNR104581OT_MD", 10, 0]] },

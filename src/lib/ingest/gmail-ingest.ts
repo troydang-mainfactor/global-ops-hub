@@ -12,6 +12,7 @@ import { baseSku, normalizeSku, normalizeWarehouseCode, storeForSku, variantSku 
 import { laterStage } from "../stages";
 import { raiseIssue } from "../issues";
 import { getSettings, type Settings } from "../settings";
+import { runInboundRules } from "../rules/inbound";
 
 export const LABEL_PROCESSED = "ops-hub/processed";
 export const LABEL_UNKNOWN = "ops-hub/unknown-format";
@@ -120,6 +121,7 @@ export async function runGmailIngest(deps: IngestDeps, opts: { mode: "incrementa
   }
 
   await parsePendingPdfs(ctx);
+  await runInboundRules(deps.db, now);
   return ctx.stats;
 }
 
@@ -261,8 +263,14 @@ async function applyParsed(
   parsedBy: string,
 ) {
   const { db, gmail } = ctx.deps;
-  const e = stored.email;
+  let e = stored.email;
   const at = msg.receivedAt;
+  if (!e.warehouseCode) {
+    // "[no value]" warehouse: use the store's usual warehouse code.
+    const wh = store.warehouseName ? await db.warehouse.findFirst({ where: { name: { equals: store.warehouseName, mode: "insensitive" } } }) : null;
+    if (!wh) throw new Error(`No warehouse in the email and none known for ${store.name}`);
+    e = { ...e, warehouseCode: wh.emailCode };
+  }
   const link = gmailViewUrl(gmail.mailbox, msg.threadId, msg.id);
 
   await checkWarehouse(ctx, store, e.warehouseCode, link);

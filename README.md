@@ -113,7 +113,10 @@ Large first runs are split across runs: each run stops after ~4 minutes and resu
 | Rule | When | Severity |
 |---|---|---|
 | `SH-PO-MULTI` | More than one ShipHero PO ends with the same order number | yellow |
-| `SH-WAREHOUSE` | The login has several warehouses and none matches the account's warehouse name | yellow |
+| `SH-PROFILE` | A store has no ShipHero warehouse whose profile matches its name | yellow |
+| `R01` | PO issued more than 48h ago and still not in ShipHero | yellow |
+| `R18` | Short shipment: part received then no change for 3 days, or ShipHero closed it short | red |
+| `R19` | The PO's product isn't in ShipHero yet: create it | yellow |
 
 Not yet: line items beyond 50 per PO, backordered-order tags (pre-order comes from product tags, per the spec).
 

@@ -94,7 +94,7 @@ export function splitTracking(raw: string | null): string[] {
 function parseIssued(subjectMatch: RegExpMatchArray, body: string): ParsedEmail {
   const { skuRaw, componentLabel } = splitSkuAndLabel(subjectMatch[1]);
   const orderNo = NO_VALUE.test(subjectMatch[2]) ? "" : subjectMatch[2].toUpperCase();
-  const warehouseCode = normalizeWarehouseCode(subjectMatch[3]);
+  const warehouseCode = NO_VALUE.test(subjectMatch[3].trim()) ? "" : normalizeWarehouseCode(subjectMatch[3]);
   const bodySku = labelled(body, "SKU");
   const designName = labelled(body, "Design Name");
   const orderType = labelled(body, "Order Type");
@@ -126,7 +126,7 @@ function parseIssued(subjectMatch: RegExpMatchArray, body: string): ParsedEmail 
 function parseShipped(subjectMatch: RegExpMatchArray, body: string, ref: Date): ParsedEmail {
   const orderNo = NO_VALUE.test(subjectMatch[1]) ? "" : subjectMatch[1].toUpperCase();
   const { skuRaw, componentLabel } = splitSkuAndLabel(subjectMatch[2]);
-  const warehouseCode = normalizeWarehouseCode(subjectMatch[3]);
+  const warehouseCode = NO_VALUE.test(subjectMatch[3].trim()) ? "" : normalizeWarehouseCode(subjectMatch[3]);
   const ls = lines(body);
 
   // Design name: the line(s) between the SKU line and "Tracking:".
@@ -169,7 +169,7 @@ function parseShipped(subjectMatch: RegExpMatchArray, body: string, ref: Date): 
     sku: baseSku(skuRaw),
     skuRaw,
     componentLabel,
-    warehouseCode,
+    warehouseCode: warehouseCode || bodyWarehouse || "", // subject "[no value]": use the body's Warehouse line
     designName,
     orderType: null,
     tracking,

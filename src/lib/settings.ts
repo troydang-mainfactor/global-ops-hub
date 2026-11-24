@@ -4,6 +4,7 @@ import type { Db } from "./db";
 export const DEFAULT_SETTINGS = {
   receivingBufferDays: 7, // delivery → sellable (§10.5)
   shippedNotReceivedDays: 10, // R04
+  partialReceiptStallDays: 3, // R18: part received and no change for this long = short shipment?
   issuedNoShipheroHours: 48, // R01
   launchWindowDays: 14, // R12 / At risk
   preorderTags: ["pre-order"], // ShipHero product tags synced from Shopify (§3), case-insensitive
