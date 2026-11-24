@@ -162,10 +162,33 @@ describe.skipIf(!hasTestDb)("ShipHero sync (DB)", () => {
   });
 
   it("flags a PO whose product isn't in ShipHero yet (R19), once inventory has been read", async () => {
-    await run(fakeShiphero({ wps: [{ sku: "OTHERSKU_MD", on_hand: 1, available: 1, allocated: 0, backorder: 0 }] }));
+    const other = { id: "X", po_number: "OTHR - PO090000", lines: [["OTHERSKU_MD", 1, 0]] as [string, number, number][] };
+    await run(fakeShiphero({ pos: [other], wps: [{ sku: "OTHERSKU_MD", on_hand: 1, available: 1, allocated: 0, backorder: 0 }] }));
     expect(await db.issue.findUnique({ where: { fingerprint: `R19:${po.id}:STOKNR104581OT` } })).toMatchObject({ severity: "yellow", status: "open" });
     await run(fakeShiphero({ wps: [{ sku: "STOKNR104581OT_MD", on_hand: 0, available: 0, allocated: 0, backorder: 0 }] }));
     expect(await db.issue.findUnique({ where: { fingerprint: `R19:${po.id}:STOKNR104581OT` } })).toMatchObject({ status: "resolved" });
+  });
+
+  it("counts rejected units as delivered: 299 received + 1 rejected of 300 is received, not short", async () => {
+    await run(fakeShiphero({ pos: [{ id: "A", po_number: "STOK - PO094330", status: "closed", date_closed: "2026-11-13T00:00:00Z", lines: [["STOKNR104581OT_MD", 300, 299]] }] }));
+    await db.shipheroPo.update({ where: { id: "A" }, data: { lines: { items: [{ sku: "STOKNR104581OT_MD", quantity: 300, quantityReceived: 299, quantityRejected: 1, fulfillmentStatus: "closed" }] } } });
+    await run(fakeShiphero({ pos: [] }));
+    expect((await db.purchaseOrder.findUniqueOrThrow({ where: { id: po.id } })).stage).toBe("received");
+    expect((await db.issue.findUnique({ where: { fingerprint: `R18:${po.id}` } }))?.status ?? "none").not.toBe("open");
+  });
+
+  it("does not claim a product is missing until the warehouse that receives POs has been read", async () => {
+    // POs live in a main warehouse (W-MAIN) that isn't any store's profile warehouse.
+    const sh = fakeShiphero({ pos: [{ id: "X", po_number: "OTHR - PO090000", lines: [["OTHERSKU_MD", 1, 0]] }] });
+    const origQuery = sh.query.bind(sh);
+    sh.query = (async (q: string) => {
+      const r = await origQuery(q);
+      if (q.includes("purchase_orders(")) (r as any).purchase_orders.data.edges.forEach((e: any) => (e.node.warehouse_id = "W-MAIN"));
+      return r;
+    }) as typeof sh.query;
+    await run(sh);
+    const wp = sh.queries.filter((q) => q.includes("warehouse_products("));
+    expect(wp.some((q) => q.includes('"W-MAIN"'))).toBe(true);
   });
 
   it("ignores cancelled ShipHero POs", async () => {

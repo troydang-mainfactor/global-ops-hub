@@ -122,6 +122,7 @@ model PoLine {
   qtyOrdered  Int? // from PDF
   qtyShiphero Int? // from ShipHero PO
   qtyReceived Int           @default(0)
+  qtyRejected Int           @default(0) // added: rejected at receiving in ShipHero
 
   @@unique([poId, lineKey])
   @@index([productSku])

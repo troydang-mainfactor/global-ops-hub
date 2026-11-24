@@ -23,6 +23,10 @@ export async function runInboundRules(db: Db, now = new Date()) {
   });
   // Warehouses whose inventory has been read in full at least once (so "not in ShipHero" is trustworthy).
   const wpStates = await db.syncState.findMany({ where: { key: { startsWith: "sh:wp:" } } });
+  const poWarehouses = new Map<string, string[]>();
+  for (const r of await db.shipheroPo.findMany({ where: { warehouseId: { not: null } }, distinct: ["accountId", "warehouseId"], select: { accountId: true, warehouseId: true } })) {
+    poWarehouses.set(r.accountId, [...(poWarehouses.get(r.accountId) ?? []), r.warehouseId!]);
+  }
   // Logins that have synced at least once (warehouse list saved).
   const syncedAccounts = new Set((await db.syncState.findMany({ where: { key: { startsWith: "sh:wh:" } }, select: { key: true } })).map((s) => s.key.slice(6)));
   const inventoryReady = new Set(
@@ -35,12 +39,13 @@ export async function runInboundRules(db: Db, now = new Date()) {
     const connected = Boolean(acct && syncedAccounts.has(acct.id));
     const ordered = po.lines.reduce((a, l) => a + (l.qtyShiphero ?? l.qtyOrdered ?? 0), 0);
     const received = po.lines.reduce((a, l) => a + l.qtyReceived, 0);
+    const rejected = po.lines.reduce((a, l) => a + l.qtyRejected, 0);
     const short = po.lines
-      .filter((l) => (l.qtyShiphero ?? l.qtyOrdered ?? 0) > l.qtyReceived)
+      .filter((l) => (l.qtyShiphero ?? l.qtyOrdered ?? 0) > l.qtyReceived + l.qtyRejected)
       .map((l) => `${l.variantSku ?? l.productSku} ${l.qtyReceived}/${l.qtyShiphero ?? l.qtyOrdered}`);
 
     // R18: part received, then nothing for N days, or ShipHero closed it short.
-    if (po.shipheroId && received > 0 && received < ordered) {
+    if (po.shipheroId && received > 0 && received + rejected < ordered) {
       const closedShort = Boolean(po.shipheroClosedAt);
       const stalledFor = po.receivedChangedAt ? Math.floor((now.getTime() - po.receivedChangedAt.getTime()) / DAY) : 0;
       if (closedShort || stalledFor >= settings.partialReceiptStallDays) {
@@ -56,8 +61,9 @@ export async function runInboundRules(db: Db, now = new Date()) {
 
     if (!po.shipheroId && connected) {
       // R19: the product doesn't exist in ShipHero yet, so the PO can't be created there.
-      const whId = store.shipheroWarehouseId;
-      const ready = whId && inventoryReady.has(`${acct!.id}:${whId}`);
+      // Trust "not in ShipHero" only once every warehouse that receives POs has been read in full.
+      const poWh = poWarehouses.get(acct!.id) ?? [];
+      const ready = poWh.length > 0 && poWh.every((wh) => inventoryReady.has(`${acct!.id}:${wh}`));
       const missing: string[] = [];
       if (ready) {
         for (const sku of [...new Set(po.lines.map((l) => l.productSku))]) {
@@ -68,7 +74,7 @@ export async function runInboundRules(db: Db, now = new Date()) {
           await raise({
             ruleId: "R19", severity: "yellow",
             title: `${sku} (${store.name}) isn't in ShipHero: create the product for ${po.orderNo}`,
-            detail: `No ShipHero product with this SKU in ${store.name}'s warehouse, so the PO can't be received. Create it (with its sizes) in ShipHero.`,
+            detail: `No ShipHero product with this SKU in the ${acct!.name} login, so the PO can't be received. Create it (with its sizes) in ShipHero.`,
             fingerprint: `R19:${po.id}:${sku}`, poId: po.id, productSku: sku,
             evidence: { orderNo: po.orderNo, sku, store: store.name },
           });

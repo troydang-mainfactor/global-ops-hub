@@ -81,7 +81,9 @@ export async function runShipheroSync(deps: ShSyncDeps): Promise<AccountStats[]>
       await syncPurchaseOrders(ctx, client, account, stats);
       await matchPurchaseOrders(ctx, account, stats);
       // Inventory per enabled store's warehouse (each store has its own warehouse/profile).
-      const whIds = [...new Set(storesOf(ctx, account).filter((st) => st.enabled && st.shipheroWarehouseId).map((st) => st.shipheroWarehouseId!))];
+      // Inventory lives where the POs are received (often one main warehouse), plus each store's own.
+      const poWh = (await deps.db.shipheroPo.findMany({ where: { accountId: account.id, warehouseId: { not: null } }, distinct: ["warehouseId"], select: { warehouseId: true } })).map((r) => r.warehouseId!);
+      const whIds = [...new Set([...poWh, ...storesOf(ctx, account).filter((st) => st.enabled && st.shipheroWarehouseId).map((st) => st.shipheroWarehouseId!)])];
       stats.inventoryPassComplete = true;
       for (const whId of whIds) {
         if (!timeLeft(ctx)) { stats.inventoryPassComplete = false; break; }
@@ -347,13 +349,14 @@ export function mergeSplitPos(cands: ShPoRow[]): ShPoRow | null {
 async function applyShipheroPo(ctx: Ctx, po: PurchaseOrder, sh: ShPoRow, stats: AccountStats) {
   const { db } = ctx;
   const raw = sh.lines as unknown as { legacyId?: number | null; items: ShLine[] };
-  const agg = new Map<string, { productSku: string; variantSku: string | null; qty: number; rec: number }>();
+  const agg = new Map<string, { productSku: string; variantSku: string | null; qty: number; rec: number; rej: number }>();
   for (const l of raw.items ?? []) {
     if (!l.sku) continue;
     const sku = normalizeSku(l.sku);
-    const cur = agg.get(sku) ?? { productSku: baseSku(sku), variantSku: sku.includes("_") ? sku : null, qty: 0, rec: 0 };
+    const cur = agg.get(sku) ?? { productSku: baseSku(sku), variantSku: sku.includes("_") ? sku : null, qty: 0, rec: 0, rej: 0 };
     cur.qty += l.quantity;
     cur.rec += l.quantityReceived;
+    cur.rej += l.quantityRejected ?? 0;
     agg.set(sku, cur);
   }
 
@@ -363,8 +366,8 @@ async function applyShipheroPo(ctx: Ctx, po: PurchaseOrder, sh: ShPoRow, stats: 
     if (l.variantSku) await db.variant.upsert({ where: { sku: l.variantSku }, create: { sku: l.variantSku, productSku: l.productSku }, update: {} });
     await db.poLine.upsert({
       where: { poId_lineKey: { poId: po.id, lineKey } },
-      create: { poId: po.id, lineKey, productSku: l.productSku, variantSku: l.variantSku, qtyShiphero: l.qty, qtyReceived: l.rec },
-      update: { qtyShiphero: l.qty, qtyReceived: l.rec },
+      create: { poId: po.id, lineKey, productSku: l.productSku, variantSku: l.variantSku, qtyShiphero: l.qty, qtyReceived: l.rec, qtyRejected: l.rej },
+      update: { qtyShiphero: l.qty, qtyReceived: l.rec, qtyRejected: l.rej },
     });
   }
   const sized = [...new Set([...agg.values()].filter((l) => l.variantSku).map((l) => l.productSku))];
@@ -374,8 +377,10 @@ async function applyShipheroPo(ctx: Ctx, po: PurchaseOrder, sh: ShPoRow, stats: 
 
   const total = [...agg.values()].reduce((a, l) => a + l.qty, 0);
   const rec = [...agg.values()].reduce((a, l) => a + l.rec, 0);
+  const rej = [...agg.values()].reduce((a, l) => a + l.rej, 0);
   // Progress is judged on quantities, not status text (API and UI statuses can differ).
-  const shStage = total > 0 && rec >= total ? "received" : rec > 0 ? "receiving" : "in_shiphero";
+  // Rejected units were delivered (damaged), so they count toward "everything arrived".
+  const shStage = total > 0 && rec + rej >= total ? "received" : rec > 0 ? "receiving" : "in_shiphero";
   const stage = laterStage(po.stage, shStage);
   const data: Prisma.PurchaseOrderUpdateInput = { stage, shipheroId: sh.id, shipheroClosedAt: sh.dateClosed };
   if (po.receivedQty !== rec) {
@@ -483,3 +488,20 @@ async function syncPreorderTags(ctx: Ctx, client: ShipheroClient, account: Shiph
   stats.preorderSkus = skus.length;
 }
 
+
+/**
+ * Matches local POs against the ShipHero POs already cached, without calling ShipHero.
+ * Run after Gmail ingest so POs created from emails match immediately.
+ */
+export async function rematchFromCache(db: Db, now = new Date()) {
+  const ctx: Ctx = { db, now, deadline: Number.POSITIVE_INFINITY, settings: await getSettings(db), stores: await db.store.findMany() };
+  const synced = new Set((await db.syncState.findMany({ where: { key: { startsWith: "sh:wh:" } }, select: { key: true } })).map((s) => s.key.slice(6)));
+  const accounts = (await db.shipheroAccount.findMany()).filter((a) => synced.has(a.id));
+  let matched = 0;
+  for (const account of accounts) {
+    const stats = { matched: 0, ambiguous: 0, receiving: 0, received: 0 } as AccountStats;
+    await matchPurchaseOrders(ctx, account, stats);
+    matched += stats.matched;
+  }
+  return matched;
+}

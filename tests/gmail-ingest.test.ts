@@ -206,6 +206,15 @@ ${f.issuedStok.body}`;
     expect(await db.event.count({ where: { kind: "email_shipped" } })).toBe(1);
   });
 
+  it("matches a new email PO to an already-synced ShipHero PO straight away", async () => {
+    const acct = await db.shipheroAccount.findFirstOrThrow();
+    await db.syncState.create({ data: { key: `sh:wh:${acct.id}`, value: { profiles: [], count: 1 } } });
+    await db.shipheroPo.create({ data: { id: "SH1", accountId: acct.id, poNumber: "FALR PO094108", warehouseId: "W", fulfillmentStatus: "closed", lines: { items: [{ sku: "FALRNR103455RD_MD", quantity: 10, quantityReceived: 10, quantityRejected: 0, fulfillmentStatus: "closed" }] }, syncedAt: NOW } });
+    await db.store.update({ where: { code: "FNR" }, data: { shipheroAccountId: acct.id } });
+    await runGmailIngest({ db, gmail: fakeGmail([msg("m1", f.shippedFalr)]), ai: null, now: () => NOW }, { mode: "backfill" });
+    expect(await db.purchaseOrder.findFirstOrThrow({ where: { orderNo: "PO094108" } })).toMatchObject({ shipheroId: "SH1", stage: "received" });
+  });
+
   it("keeps unknown formats and raises an info issue", async () => {
     const gmail = fakeGmail([msg("m1", f.unknownFormat)]);
     const stats = await runGmailIngest({ db, gmail, ai: null, now: () => NOW }, { mode: "backfill" });

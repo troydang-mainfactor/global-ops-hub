@@ -13,6 +13,7 @@ import { laterStage } from "../stages";
 import { raiseIssue } from "../issues";
 import { getSettings, type Settings } from "../settings";
 import { runInboundRules } from "../rules/inbound";
+import { rematchFromCache } from "../shiphero/sync";
 
 export const LABEL_PROCESSED = "ops-hub/processed";
 export const LABEL_UNKNOWN = "ops-hub/unknown-format";
@@ -121,6 +122,7 @@ export async function runGmailIngest(deps: IngestDeps, opts: { mode: "incrementa
   }
 
   await parsePendingPdfs(ctx);
+  await rematchFromCache(deps.db, now);
   await runInboundRules(deps.db, now);
   return ctx.stats;
 }
